@@ -1,0 +1,41 @@
+name: Publish desktop glass diagnostic
+on:
+  push:
+    branches: [windows-native-end4]
+    paths: [.github/workflows/publish-desktop-probe.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Require the tested probe source
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/41936430495" > run.json
+          python - <<'PY'
+          import json
+          run = json.load(open('run.json'))
+          assert run['conclusion'] == 'success'
+          assert run['head_sha'] == 'f82cad86a0fa619ad505d014c71aa088e9961070'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 41936430495
+          name: desktop-glass-probe
+          path: probe
+      - name: Verify and publish the diagnostic EXE
+        working-directory: probe
+        run: |
+          python - <<'PY'
+          import hashlib, pathlib
+          exe = pathlib.Path('ii-desktop-glass-probe.exe')
+          expected = pathlib.Path(str(exe) + '.sha256').read_text().split()[0]
+          assert hashlib.file_digest(exe.open('rb'), 'sha256').hexdigest() == expected
+          PY
+          test "$(gh release view desktop-glass-probe.1 --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
+          gh release upload desktop-glass-probe.1 ii-desktop-glass-probe.exe ii-desktop-glass-probe.exe.sha256 PROBE-README.md --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit desktop-glass-probe.1 --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
