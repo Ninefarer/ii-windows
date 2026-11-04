@@ -8,6 +8,10 @@ on:
       candidate_run:
         description: Successful Windows native candidate run ID
         required: true
+      publish_release:
+        description: Publish the validated EXE as a GitHub prerelease
+        type: boolean
+        default: false
 permissions:
   actions: read
   contents: read
@@ -64,3 +68,47 @@ jobs:
           name: ii-windows-single-exe
           path: out/
           if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+    needs: bundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_RUN: ${{ inputs.candidate_run }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ii-windows-single-exe
+          path: installer
+      - name: Publish the requested tested preview
+        working-directory: installer
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, re
+          run = json.load(open('CANDIDATE-RUN.json'))
+          assert str(run['id']) == os.environ['EXPECTED_RUN']
+          assert run['conclusion'] == 'success'
+          assert run['head_branch'] == 'windows-native-end4'
+          files = list(pathlib.Path('.').glob('*-x64-offline-setup.exe'))
+          assert len(files) == 1
+          name = files[0].name
+          match = re.fullmatch(r'ii-windows-([0-9A-Za-z.+-]+)-x64-offline-setup.exe', name)
+          assert match
+          version = match[1]
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f'RELEASE_TAG=v{version}\nEXE={name}\nCANDIDATE_SHA={run["head_sha"]}\n')
+          pathlib.Path('release-notes.md').write_text(
+              'Windows x64 development preview. Download the offline setup EXE and open it; no separate package or PowerShell command is required. Uses the existing ii installation and settings.\n\n'
+              'This preview routes Windows-style labels and text fields through the selected Qt text renderer, including controls previously hardcoded to native raster rendering. The Honkai theme selects Distance field. Fonts, font sizes, icon rendering and display scaling are unchanged. Windows wallpaper shortcut hints now use Win.\n\n'
+              'Select Settings > Interface > Text rendering > Distance field, then fully restart ii and Settings. Use only the base theme Install.ps1; skip the old shell-overwrite glass/text installers.\n\n'
+              'This remains an incomplete Windows port. Live Wallpaper Engine refraction is unsupported. Hosted-runner screenshot and font-folder-lock limitations and real-device desktop/DPI testing remain outstanding.\n\n'
+              f'Validated candidate: https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{run["id"]} (source {run["head_sha"]}). The single-EXE payloads were compared byte-for-byte with that candidate.\n', encoding='utf-8')
+          PY
+          sha256sum -c *.exe.sha256
+          gh release create "$RELEASE_TAG" "$EXE" "$EXE.sha256" \
+            --repo "$GITHUB_REPOSITORY" --target "$CANDIDATE_SHA" \
+            --prerelease --latest=false --title "end4 Windows preview $RELEASE_TAG" \
+            --notes-file release-notes.md
