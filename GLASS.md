@@ -1,6 +1,6 @@
 # Experimental desktop widget glass
 
-This fork applies `patches/ii/0001-windows-widget-glass.patch` to the ii revision in `sources.lock`. It ports end4-pC's FrostedGlass/liquidLens rendering into supported desktop cards on Windows. It is experimental and disabled by default.
+This fork applies `patches/ii/0001-windows-native-desktop.patch` to the ii revision in `sources.lock`. It ports end4-pC's FrostedGlass/liquidLens rendering into supported desktop cards on Windows. It is experimental and disabled by default.
 
 ## Enable
 
@@ -34,3 +34,5 @@ Before updating `sources.lock`, rebase/regenerate this patch against the new ii 
 
 Base shell: nunreasonable/dots-hyprland `be25075b35cb5f8cc8e6eb19a8d8da9561d1dcdc`.
 FrostedGlass component and liquidLens shader: pctrade/end4-pC `6f461b427a223e4c61c25194764fa5e3192eb36b`. These GPL-3.0 sources are carried in the patch with the shader source alongside the binary, under this repository's GPL-3.0 license. See LICENSE and THIRD-PARTY.md.
+
+This development branch additionally centralizes external wallpaper ownership, source availability and text rendering. External app mode uses translucent cards rather than the old static image. See WINDOWS-NATIVE.md.

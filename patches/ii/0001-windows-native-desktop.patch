@@ -1,8 +1,44 @@
+diff --git a/modules/common/Appearance.qml b/modules/common/Appearance.qml
+index 07f5148..545d5be 100644
+--- a/modules/common/Appearance.qml
++++ b/modules/common/Appearance.qml
+@@ -1,6 +1,7 @@
+ import QtQuick
+ import Quickshell
+ import qs.modules.common.functions
++import "functions/WindowsPolicy.js" as WindowsPolicy
+ pragma Singleton
+ pragma ComponentBehavior: Bound
+ 
+@@ -13,6 +14,9 @@ Singleton {
+     property QtObject rounding
+     property QtObject font
+     property QtObject sizes
++    readonly property string textRenderer: WindowsPolicy.textRenderer(Config.options.appearance.textRendering, Platform.isWindows)
++    readonly property int textRenderType: textRenderer === "distance" ? Text.QtRendering
++        : textRenderer === "curves" ? Text.CurveRendering : Text.NativeRendering
+     property string syntaxHighlightingTheme
+     readonly property bool animationsEnabled: !(Platform.isWindows
+         && Config.options.windowsPort.gameMode.enable)
 diff --git a/modules/common/Config.qml b/modules/common/Config.qml
-index 6b03d45..b1287c2 100644
+index 6b03d45..c796b8c 100644
 --- a/modules/common/Config.qml
 +++ b/modules/common/Config.qml
-@@ -233,6 +233,18 @@ Singleton {
+@@ -107,10 +107,11 @@ Singleton {
+             }
+ 
+             property JsonObject appearance: JsonObject {
+-                property string visualStyle: "ii"
++                property string visualStyle: "end4pc"
+                 property string visualStyleApplied: "ii"
+                 property int visualStylePresetVersion: 0
+-                property string settingsLayout: "ii"
++                property string settingsLayout: "end4pc"
++                property string textRendering: "auto"
+                 property string uiBackground: "themed"
+                 property bool extraBackgroundTint: true
+                 property int fakeScreenRounding: 2 // 0: None | 1: Always | 2: When not fullscreen
+@@ -233,6 +234,18 @@ Singleton {
                  property string splitSide: "left"
                  property bool showSnapLines: true
                  property JsonObject widgets: JsonObject {
@@ -21,6 +57,35 @@ index 6b03d45..b1287c2 100644
                      property bool blurWidgets: false
                      property real blurRadius: 32
                      property bool shadow: true
+@@ -743,6 +756,7 @@ Singleton {
+                 property bool nativeTaskbar: false
+                 property bool backgroundBehindIcons: true
+                 property bool ownWallpaper: false
++                property string wallpaperOwner: "auto"
+                 property bool superDrag: true
+                 property bool panelAnimations: true
+                 property string panelAnimationStyle: "standard"
+diff --git a/modules/common/functions/WindowsPolicy.js b/modules/common/functions/WindowsPolicy.js
+new file mode 100644
+index 0000000..4607cde
+--- /dev/null
++++ b/modules/common/functions/WindowsPolicy.js
+@@ -0,0 +1,15 @@
++.pragma library
++
++function wallpaperOwner(selected, legacyOwnWallpaper) {
++    if (selected === "system" || selected === "ii" || selected === "external") return selected;
++    return legacyOwnWallpaper ? "ii" : "system";
++}
++
++function textRenderer(selected, windows) {
++    if (selected === "native" || selected === "distance" || selected === "curves") return selected;
++    return windows ? "distance" : "native";
++}
++
++function acceptsUpdateCache(cache, repository) {
++    return cache !== null && typeof cache === "object" && cache.repository === repository;
++}
 diff --git a/modules/common/widgets/FrostedGlass.qml b/modules/common/widgets/FrostedGlass.qml
 new file mode 100644
 index 0000000..17561fe
@@ -95,15 +160,77 @@ index 0000000..17561fe
 +        fragmentShader: Qt.resolvedUrl("shaders/liquidLens.frag.qsb")
 +    }
 +}
+diff --git a/modules/common/widgets/StyledText.qml b/modules/common/widgets/StyledText.qml
+index d05d254..f39ba3d 100644
+--- a/modules/common/widgets/StyledText.qml
++++ b/modules/common/widgets/StyledText.qml
+@@ -7,7 +7,7 @@ Text {
+     property real animationDistanceX: 0
+     property real animationDistanceY: 6
+ 
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     verticalAlignment: Text.AlignVCenter
+     property bool shouldUseNumberFont: /^\d+$/.test(root.text)
+     property var defaultFont: shouldUseNumberFont ? Appearance.font.family.numbers : Appearance.font.family.main
+diff --git a/modules/common/widgets/StyledTextArea.qml b/modules/common/widgets/StyledTextArea.qml
+index afb8dd2..729457a 100644
+--- a/modules/common/widgets/StyledTextArea.qml
++++ b/modules/common/widgets/StyledTextArea.qml
+@@ -7,7 +7,7 @@ import QtQuick.Controls
+  */
+ TextArea {
+     id: root
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     ContextMenu.menu: StyledTextEditMenu { editor: root }
+     selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
+     selectionColor: Appearance.colors.colSecondaryContainer
+diff --git a/modules/common/widgets/StyledTextInput.qml b/modules/common/widgets/StyledTextInput.qml
+index 7b31816..e0b7237 100644
+--- a/modules/common/widgets/StyledTextInput.qml
++++ b/modules/common/widgets/StyledTextInput.qml
+@@ -7,7 +7,7 @@ import QtQuick.Controls
+  */
+ TextInput {
+     color: Appearance.colors.colOnLayer1
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
+     selectionColor: Appearance.colors.colSecondaryContainer
+     font {
+diff --git a/modules/common/widgets/ToolbarTextField.qml b/modules/common/widgets/ToolbarTextField.qml
+index 04e33a4..e16a7cf 100644
+--- a/modules/common/widgets/ToolbarTextField.qml
++++ b/modules/common/widgets/ToolbarTextField.qml
+@@ -22,7 +22,7 @@ TextField {
+         hintingPreference: Font.PreferFullHinting
+         variableAxes: Appearance.font.variableAxes.main
+     }
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     selectedTextColor: Appearance.colors.colOnSecondaryContainer
+     selectionColor: Appearance.colors.colSecondaryContainer
+ 
 diff --git a/modules/common/widgets/WidgetCard.qml b/modules/common/widgets/WidgetCard.qml
-index dacf1ec..b8574fc 100644
+index dacf1ec..98a9e30 100644
 --- a/modules/common/widgets/WidgetCard.qml
 +++ b/modules/common/widgets/WidgetCard.qml
-@@ -9,21 +9,39 @@ Rectangle {
+@@ -1,6 +1,7 @@
+ import QtQuick
+ import qs.modules.common
+ import qs
++import qs.services
+ 
+ Rectangle {
+     id: root
+@@ -9,21 +10,41 @@ Rectangle {
      property bool shadowed: Config.options.background.widgets.shadow
      property color tint: Appearance.colors.colLayer1
      property real tintOpacity: 0.55
 +    property bool glass: true
++    property color fallbackColor: Appearance.colors.colPrimaryContainer
++    readonly property bool translucentFallback: root.glass && Config.options.background.widgets.glass.enable && DesktopBackground.external
 +    readonly property bool glassActive: glass
 +        && (Config.options.background.widgets.glass.enable ?? false)
 +        && widget !== null && widget.wallpaperItem !== null
@@ -111,7 +238,7 @@ index dacf1ec..b8574fc 100644
  
      radius: Appearance.rounding?.verylarge ?? 30
 -    color: Appearance.colors.colPrimaryContainer
-+    color: glassActive ? "transparent" : Appearance.colors.colPrimaryContainer
++    color: glassActive ? "transparent" : translucentFallback ? Qt.alpha(fallbackColor, 0.28) : fallbackColor
  
 +    // Preserve the backend's shadow policy: shadows are separate from refraction.
      StyledRectangularShadow {
@@ -594,10 +721,30 @@ literal 0
 HcmV?d00001
 
 diff --git a/modules/ii/background/Background.qml b/modules/ii/background/Background.qml
-index 52b7863..6747dcc 100644
+index 52b7863..164cb34 100644
 --- a/modules/ii/background/Background.qml
 +++ b/modules/ii/background/Background.qml
-@@ -783,6 +783,26 @@ Variants {
+@@ -76,8 +76,8 @@ Variants {
+         property bool wallpaperIsVideo: Wallpapers.isVideoPath(bgRoot.effectiveWallpaperPath)
+         readonly property string targetWallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : effectiveWallpaperPath
+         property string wallpaperPath: ""
+-        readonly property bool videoLayerActive: Platform.isWindows && wallpaperIsVideo && !wallpaperSafetyTriggered
+-        readonly property bool videoLayerParked: Platform.isWindows && !videoLayerActive && Wallpapers.currentDesktopWallpaper !== ""
++        readonly property bool videoLayerActive: Platform.isWindows && DesktopBackground.mayDrawVideo && wallpaperIsVideo && !wallpaperSafetyTriggered
++        readonly property bool videoLayerParked: Platform.isWindows && DesktopBackground.mayDrawVideo && !videoLayerActive && Wallpapers.currentDesktopWallpaper !== ""
+             && Wallpapers.isVideoPath(Config.options.background.wallpaperPath)
+         readonly property bool showVideoFrame: videoLayerActive && !(videoWallpaperLoader.item?.ready ?? false)
+         readonly property bool desktopCovered: HyprlandData.windowList.some(win => win.monitor == monitor?.id
+@@ -112,7 +112,7 @@ Variants {
+         }
+ 
+         readonly property bool widgetsAboveIcons: Platform.isWindows && (WindowsNative.desktopLayer?.active ?? false) && !GlobalStates.screenLocked
+-        readonly property bool nativeWallpaper: Platform.isWindows && Config.options.windowsPort.backgroundBehindIcons && !Config.options.windowsPort.ownWallpaper
++        readonly property bool nativeWallpaper: DesktopBackground.nativeWallpaper
+         readonly property Item widgetsSlot: widgetsWindowLoader.active ? (widgetsWindowLoader.item?.slot ?? null) : null
+         readonly property bool widgetsShown: (bgRoot.widgetsAboveIcons && bgRoot.widgetsSlot) ? (widgetsWindowLoader.item?.visible ?? false) : bgRoot.visible
+         readonly property bool widgetsAnimate: bgRoot.widgetsShown && !bgRoot.desktopCovered && !GlobalStates.screenLocked && !(Config.options.windowsPort.gameMode.enable ?? false)
+@@ -783,6 +783,27 @@ Variants {
                      }
                  }
  
@@ -610,7 +757,7 @@ index 52b7863..6747dcc 100644
 +                    cache: true
 +                    fillMode: Image.PreserveAspectCrop
 +                    source: {
-+                        if (!Platform.isWindows || bgRoot.wallpaperSafetyTriggered
++                        if (!Platform.isWindows || DesktopBackground.external || bgRoot.wallpaperSafetyTriggered
 +                            || !(Config.options.background.widgets.glass.enable ?? false))
 +                            return "";
 +                        const path = bgRoot.wallpaperIsVideo
@@ -618,13 +765,14 @@ index 52b7863..6747dcc 100644
 +                            : bgRoot.effectiveWallpaperPath;
 +                        return path ? CF.FileUtils.folderUrl(path) : "";
 +                    }
-+                    sourceSize: Qt.size(Math.max(1, width), Math.max(1, height))
++                    readonly property real captureDpr: (QsWindow.window as QsWindow)?.devicePixelRatio ?? 1
++                    sourceSize: Qt.size(Math.max(1, Math.ceil(width * captureDpr)), Math.max(1, Math.ceil(height * captureDpr)))
 +                }
 +
                  MouseArea {
                      id: centeredDesktopThumpArea
                      width: Math.max(1, centeredWallpaper.centeredShapeSize())
-@@ -804,7 +824,7 @@ Variants {
+@@ -804,7 +825,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -633,7 +781,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -818,7 +838,7 @@ Variants {
+@@ -818,7 +839,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -642,7 +790,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -833,7 +853,7 @@ Variants {
+@@ -833,7 +854,7 @@ Variants {
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
                          wallpaperSafetyTriggered: bgRoot.wallpaperSafetyTriggered
@@ -651,7 +799,7 @@ index 52b7863..6747dcc 100644
                          animate: bgRoot.widgetsAnimate
                      }
                  }
-@@ -848,7 +868,7 @@ Variants {
+@@ -848,7 +869,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -660,7 +808,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -862,7 +882,7 @@ Variants {
+@@ -862,7 +883,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -669,7 +817,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -876,7 +896,7 @@ Variants {
+@@ -876,7 +897,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -678,7 +826,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -890,7 +910,7 @@ Variants {
+@@ -890,7 +911,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -687,7 +835,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -904,7 +924,7 @@ Variants {
+@@ -904,7 +925,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -696,7 +844,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -918,7 +938,7 @@ Variants {
+@@ -918,7 +939,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -705,7 +853,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -932,7 +952,7 @@ Variants {
+@@ -932,7 +953,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -714,7 +862,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -946,7 +966,7 @@ Variants {
+@@ -946,7 +967,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -723,7 +871,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -960,7 +980,7 @@ Variants {
+@@ -960,7 +981,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -732,7 +880,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -974,7 +994,7 @@ Variants {
+@@ -974,7 +995,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -741,7 +889,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -988,7 +1008,7 @@ Variants {
+@@ -988,7 +1009,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -750,7 +898,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -1002,7 +1022,7 @@ Variants {
+@@ -1002,7 +1023,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -759,7 +907,7 @@ index 52b7863..6747dcc 100644
                      }
                  }
  
-@@ -1016,7 +1036,7 @@ Variants {
+@@ -1016,7 +1037,7 @@ Variants {
                          scaledScreenWidth: bgRoot.screen.width
                          scaledScreenHeight: bgRoot.screen.height
                          wallpaperScale: 1
@@ -769,7 +917,7 @@ index 52b7863..6747dcc 100644
                  }
              }
 diff --git a/modules/ii/background/widgets/resources/ResourcesWidget.qml b/modules/ii/background/widgets/resources/ResourcesWidget.qml
-index f554518..bb438e2 100644
+index f554518..b9e89ec 100644
 --- a/modules/ii/background/widgets/resources/ResourcesWidget.qml
 +++ b/modules/ii/background/widgets/resources/ResourcesWidget.qml
 @@ -38,7 +38,7 @@ AbstractBackgroundWidget {
@@ -777,25 +925,26 @@ index f554518..bb438e2 100644
          implicitHeight: root.cardHeight
          widget: root
 -        color: statCard.bgColor
-+        color: statCard.glassActive ? "transparent" : statCard.bgColor
++        fallbackColor: statCard.bgColor
  
          ColumnLayout {
              anchors {
 diff --git a/modules/ii/background/widgets/worldclock/WorldClockWidget.qml b/modules/ii/background/widgets/worldclock/WorldClockWidget.qml
-index f5692be..5b155a4 100644
+index f5692be..0236f50 100644
 --- a/modules/ii/background/widgets/worldclock/WorldClockWidget.qml
 +++ b/modules/ii/background/widgets/worldclock/WorldClockWidget.qml
-@@ -67,7 +67,7 @@ AbstractBackgroundWidget {
+@@ -67,7 +67,8 @@ AbstractBackgroundWidget {
              id: contentRect
              anchors.fill: parent
              widget: root
 -            color: sizeMode === "4x1" ? "transparent" : Appearance.colors.colPrimaryContainer
-+            color: contentRect.glassActive || sizeMode === "4x1" ? "transparent" : Appearance.colors.colPrimaryContainer
++            glass: sizeMode !== "4x1"
++            fallbackColor: sizeMode === "4x1" ? "transparent" : Appearance.colors.colPrimaryContainer
              shadowed: sizeMode !== "4x1" && Config.options.background.widgets.shadow
              blurred: Config.options.background.widgets.blurWidgets && sizeMode === "2x2"
  
 diff --git a/modules/settings/BackgroundConfig.qml b/modules/settings/BackgroundConfig.qml
-index 6d86c1e..36be8e9 100644
+index 6d86c1e..67da234 100644
 --- a/modules/settings/BackgroundConfig.qml
 +++ b/modules/settings/BackgroundConfig.qml
 @@ -585,6 +585,17 @@ ContentPage {
@@ -816,11 +965,108 @@ index 6d86c1e..36be8e9 100644
          ConfigSwitch {
              buttonIcon: "lock_person"
              text: Translation.tr("Show widgets on the lock screen")
+@@ -630,6 +641,26 @@ ContentPage {
+         icon: "desktop_windows"
+         title: Translation.tr("Windows desktop")
+ 
++        ConfigSelectionArray {
++            text: Translation.tr("Wallpaper owner")
++            icon: "wallpaper"
++            currentValue: Config.options.windowsPort.wallpaperOwner
++            onSelected: newValue => {
++                Config.options.windowsPort.wallpaperOwner = newValue;
++                if (newValue !== "auto") Config.options.windowsPort.ownWallpaper = newValue === "ii";
++                if (newValue === "external") Config.options.windowsPort.backgroundBehindIcons = true;
++            }
++            options: [
++                { displayName: Translation.tr("Automatic (existing preference)"), value: "auto" },
++                { displayName: Translation.tr("Windows wallpaper"), value: "system" },
++                { displayName: Translation.tr("ii-managed wallpaper"), value: "ii" },
++                { displayName: Translation.tr("External app (Wallpaper Engine, Lively)"), value: "external" }
++            ]
++            StyledToolTip {
++                text: Translation.tr("External mode leaves the wallpaper app in control and keeps ii's widgets. Glass cards become translucent; live refraction of external wallpapers is not available in this preview.")
++            }
++        }
++
+         ConfigSwitch {
+             buttonIcon: "wallpaper"
+             text: Translation.tr("Put the background behind the desktop icons")
+@@ -645,6 +676,7 @@ ContentPage {
+         ConfigSwitch {
+             buttonIcon: "animation"
+             text: Translation.tr("Draw ii's own wallpaper")
++            visible: Config.options.windowsPort.wallpaperOwner === "auto"
+             enabled: Config.options.windowsPort.backgroundBehindIcons
+             checked: Config.options.windowsPort.ownWallpaper
+             onCheckedChanged: {
+diff --git a/modules/settings/InterfaceConfig.qml b/modules/settings/InterfaceConfig.qml
+index 5719f95..1471f32 100644
+--- a/modules/settings/InterfaceConfig.qml
++++ b/modules/settings/InterfaceConfig.qml
+@@ -10,6 +10,22 @@ import qs.modules.common.widgets
+ ContentPage {
+     forceWidth: true
+ 
++    ContentSection {
++        visible: Platform.isWindows
++        icon: "text_fields"
++        title: Translation.tr("Text rendering")
++        ConfigSelectionArray {
++            currentValue: Config.options.appearance.textRendering
++            onSelected: newValue => Config.options.appearance.textRendering = newValue
++            options: [
++                { displayName: Translation.tr("Automatic (distance field on Windows)"), value: "auto" },
++                { displayName: Translation.tr("Distance field"), value: "distance" },
++                { displayName: Translation.tr("Native raster"), value: "native" },
++                { displayName: Translation.tr("Curves"), value: "curves" }
++            ]
++        }
++    }
++
+     ContentSection {
+         icon: "view_quilt"
+         title: Translation.tr("Panel style")
 diff --git a/modules/settingsPc/pages/BackgroundConfig.qml b/modules/settingsPc/pages/BackgroundConfig.qml
-index 742930c..c4f5349 100644
+index 742930c..582811f 100644
 --- a/modules/settingsPc/pages/BackgroundConfig.qml
 +++ b/modules/settingsPc/pages/BackgroundConfig.qml
-@@ -2108,6 +2108,17 @@ ContentPage {
+@@ -541,6 +541,26 @@ ContentPage {
+             title: Translation.tr("Windows desktop")
+ 
+             GroupedList {
++                ConfigSelectionArray {
++                    text: Translation.tr("Wallpaper owner")
++                    icon: "wallpaper"
++                    currentValue: Config.options.windowsPort.wallpaperOwner
++                    onSelected: newValue => {
++                        Config.options.windowsPort.wallpaperOwner = newValue;
++                        if (newValue !== "auto") Config.options.windowsPort.ownWallpaper = newValue === "ii";
++                        if (newValue === "external") Config.options.windowsPort.backgroundBehindIcons = true;
++                    }
++                    options: [
++                        { displayName: Translation.tr("Automatic (existing preference)"), value: "auto" },
++                        { displayName: Translation.tr("Windows wallpaper"), value: "system" },
++                        { displayName: Translation.tr("ii-managed wallpaper"), value: "ii" },
++                        { displayName: Translation.tr("External app (Wallpaper Engine, Lively)"), value: "external" }
++                    ]
++                    W.StyledToolTip {
++                        text: Translation.tr("External mode leaves the wallpaper app in control and keeps ii's widgets. Glass cards become translucent; live refraction of external wallpapers is not available in this preview.")
++                    }
++                }
++
+                 ConfigSwitch {
+                     buttonIcon: "wallpaper"
+                     text: Translation.tr("Put the background behind the desktop icons")
+@@ -556,6 +576,7 @@ ContentPage {
+                 ConfigSwitch {
+                     buttonIcon: "animation"
+                     text: Translation.tr("Draw ii's own wallpaper")
++                    visible: Config.options.windowsPort.wallpaperOwner === "auto"
+                     enabled: Config.options.windowsPort.backgroundBehindIcons
+                     checked: Config.options.windowsPort.ownWallpaper
+                     onCheckedChanged: {
+@@ -2108,6 +2129,17 @@ ContentPage {
                          Config.options.background.widgets.shadow = checked;
                      }
                  }
@@ -838,3 +1084,203 @@ index 742930c..c4f5349 100644
                  ConfigSwitch {
                      buttonIcon: "lock_person"
                      text: Translation.tr("Show widgets on the lock screen")
+diff --git a/modules/settingsPc/pages/InterfaceConfig.qml b/modules/settingsPc/pages/InterfaceConfig.qml
+index 6e85149..408bad7 100644
+--- a/modules/settingsPc/pages/InterfaceConfig.qml
++++ b/modules/settingsPc/pages/InterfaceConfig.qml
+@@ -18,6 +18,22 @@ ContentPage {
+         Layout.fillHeight: true
+         spacing: 20
+ 
++        ContentSection {
++            visible: Platform.isWindows
++            icon: "text_fields"
++            title: Translation.tr("Text rendering")
++            ConfigSelectionArray {
++                currentValue: Config.options.appearance.textRendering
++                onSelected: newValue => Config.options.appearance.textRendering = newValue
++                options: [
++                    { displayName: Translation.tr("Automatic (distance field on Windows)"), value: "auto" },
++                    { displayName: Translation.tr("Distance field"), value: "distance" },
++                    { displayName: Translation.tr("Native raster"), value: "native" },
++                    { displayName: Translation.tr("Curves"), value: "curves" }
++                ]
++            }
++        }
++
+         ContentSection {
+             icon: "view_quilt"
+             shape: W.MaterialShape.Shape.Cookie9Sided
+diff --git a/services/DesktopBackground.qml b/services/DesktopBackground.qml
+new file mode 100644
+index 0000000..80f6543
+--- /dev/null
++++ b/services/DesktopBackground.qml
+@@ -0,0 +1,16 @@
++pragma Singleton
++import QtQuick
++import Quickshell
++import qs.modules.common
++import "../modules/common/functions/WindowsPolicy.js" as WindowsPolicy
++
++Singleton {
++    readonly property string owner: WindowsPolicy.wallpaperOwner(
++        Config.options.windowsPort.wallpaperOwner, Config.options.windowsPort.ownWallpaper)
++    readonly property bool external: Platform.isWindows && owner === "external"
++    readonly property bool nativeWallpaper: Platform.isWindows && (external
++        || (Config.options.windowsPort.backgroundBehindIcons && owner !== "ii"))
++    readonly property bool mayWriteSystemWallpaper: !external
++    readonly property bool mayDrawVideo: !external
++    readonly property string glassSource: external ? "unavailable" : "static-image"
++}
+diff --git a/services/ProblemReport.qml b/services/ProblemReport.qml
+index a5971db..e720e8e 100644
+--- a/services/ProblemReport.qml
++++ b/services/ProblemReport.qml
+@@ -14,7 +14,7 @@ Singleton {
+     property string zipPath: ""
+     property string lastError: ""
+     property bool includeCrashDump: false
+-    readonly property string newIssueUrl: "https://github.com/nunreasonable/ii-windows/issues/new"
++    readonly property string newIssueUrl: "https://github.com/Ninefarer/ii-windows/issues/new"
+     readonly property var styleNames: ({
+             "ii": "illogical-impulse (ii)",
+             "end4pc": "end4-pC",
+diff --git a/services/SelfUpdate.qml b/services/SelfUpdate.qml
+index 3568ba7..8ee7601 100644
+--- a/services/SelfUpdate.qml
++++ b/services/SelfUpdate.qml
+@@ -4,6 +4,7 @@ pragma ComponentBehavior: Bound
+ import qs.services
+ import qs.modules.common
+ import qs.modules.common.functions
++import "../modules/common/functions/WindowsPolicy.js" as WindowsPolicy
+ import QtQuick
+ import Quickshell
+ import Quickshell.Io
+@@ -12,7 +13,7 @@ Singleton {
+     id: root
+ 
+     readonly property string curlBin: Platform.isWindows ? "curl.exe" : "curl"
+-    readonly property string repo: "nunreasonable/ii-windows"
++    readonly property string repo: "Ninefarer/ii-windows"
+     readonly property string setupAssetName: "ii-windows-setup.exe"
+     readonly property string apiOverride: Quickshell.env("IIW_SELF_UPDATE_RELEASE_JSON") || ""
+     readonly property string apiUrl: root.apiOverride !== "" ? root.apiOverride
+@@ -224,6 +225,7 @@ Singleton {
+     function _saveCache() {
+         if (!Platform.isWindows) return;
+         cacheFileView.setText(JSON.stringify({
++            repository: root.repo,
+             lastCheckedAt: root.lastCheckedAt,
+             latestVersion: root.latestVersion,
+             releaseName: root.releaseName,
+@@ -271,12 +273,14 @@ Singleton {
+         onLoaded: {
+             try {
+                 const data = JSON.parse(cacheFileView.text());
++                if (WindowsPolicy.acceptsUpdateCache(data, root.repo)) {
+                 root.latestVersion = data.latestVersion ?? "";
+                 root.releaseName = data.releaseName ?? "";
+                 root.htmlUrl = data.htmlUrl ?? "";
+                 root.setupUrl = data.setupUrl ?? "";
+                 root.setupSize = data.setupSize ?? 0;
+                 root.lastCheckedAt = data.lastCheckedAt ?? 0;
++                }
+             } catch (e) {}
+             root._cacheDone = true;
+             root._startupCheck();
+diff --git a/services/Wallpapers.qml b/services/Wallpapers.qml
+index 66ca64b..372d197 100644
+--- a/services/Wallpapers.qml
++++ b/services/Wallpapers.qml
+@@ -44,7 +44,7 @@ Singleton {
+     readonly property bool perDesktop: Platform.isWindows && (Config.options.background.desktopWallpapers?.enable ?? false)
+     readonly property bool collageShown: (Config.options.background.collage?.enable ?? false)
+         && Config.options.panelFamily !== "waffle"
+-        && !(Config.options.windowsPort.backgroundBehindIcons && !Config.options.windowsPort.ownWallpaper)
++        && !DesktopBackground.nativeWallpaper
+     readonly property bool desktopWallpapersActive: root.perDesktop && !root.collageShown
+     readonly property var desktopWallpaperPaths: Config.options.background.desktopWallpapers?.paths ?? ({})
+     readonly property var desktops: root.perDesktop ? (WindowsNative.wallpaper?.desktops ?? []) : []
+@@ -84,6 +84,7 @@ Singleton {
+     function load () {} // For forcing initialization
+ 
+     function startPreview(path) {
++        if (DesktopBackground.external) return;
+         if (!path || path.length === 0) return;
+         if (Platform.isWindows && root.isVideoPath(path)) return;
+         if (!SpicyStuff.allowed && root.isInSpicyFolder(path)) return;
+@@ -173,7 +174,7 @@ Singleton {
+ 
+     function followSystemWallpaper() {
+         const wn = WindowsNative.wallpaper;
+-        if (!wn || !Config.ready || Config.options.windowsPort.ownWallpaper) return;
++        if (!wn || !Config.ready || DesktopBackground.external || !DesktopBackground.nativeWallpaper) return;
+         const current = wn.currentWallpaper();
+         if (!current || current.length === 0) return;
+         const normalized = path => FileUtils.trimFileProtocol(path).replace(/\\/g, "/").toLowerCase();
+@@ -342,6 +343,10 @@ Singleton {
+     }
+ 
+     function apply(path, darkMode = Appearance.m3colors.darkmode) {
++        if (DesktopBackground.external) {
++            console.warn("[Wallpapers] Wallpaper selection is controlled by the external wallpaper app.");
++            return;
++        }
+         if (!path || path.length === 0) return;
+         if (!SpicyStuff.allowed && root.isInSpicyFolder(path)) {
+             console.warn("[Wallpapers] Not applying a wallpaper from the Spicy Stuff folder:", SpicyStuff.restriction);
+@@ -416,11 +421,15 @@ Singleton {
+     }
+ 
+     readonly property bool systemDrawsWallpaper: Config.options.panelFamily !== "waffle"
+-        && Config.options.windowsPort.backgroundBehindIcons && !Config.options.windowsPort.ownWallpaper
++        && DesktopBackground.nativeWallpaper
+ 
+     function _retheme(path, darkMode, applyToSystem = true, videoPath = "") {
+         const wn = WindowsNative.wallpaper;
+         if (!wn) return;
++        if (applyToSystem && DesktopBackground.external) {
++            console.warn("[Wallpapers] The external wallpaper app owns the background; select a different wallpaper owner to apply an ii wallpaper.");
++            return;
++        }
+         if (!SpicyStuff.allowed && root.isInSpicyFolder(path)) {
+             console.warn("[Wallpapers] Not using a wallpaper from the Spicy Stuff folder:", SpicyStuff.restriction);
+             return;
+@@ -444,7 +453,7 @@ Singleton {
+             const target = videoPath.length > 0 ? videoPath : path;
+             const changed = root.normalizedPath(target) !== root.normalizedPath(Config.options.background.wallpaperPath);
+             const desktopKeepsOwn = root.desktopWallpapersActive && (root.systemDrawsWallpaper || root._nativeDesktopWallpapers) && root.currentDesktopWallpaper !== "";
+-            if (applyToSystem && !desktopKeepsOwn) {
++            if (applyToSystem && !desktopKeepsOwn && DesktopBackground.mayWriteSystemWallpaper) {
+                 wn.setWallpaper(path, root.systemDrawsWallpaper);
+                 root._systemWallpaper = path;
+                 root._systemShowsOwn = false;
+@@ -452,7 +461,7 @@ Singleton {
+             }
+             Config.options.background.wallpaperPath = target;
+             if (videoPath.length > 0) Config.options.background.thumbnailPath = path;
+-            if (applyToSystem && changed) root._syncWindowsLockScreen(path);
++            if (applyToSystem && changed && DesktopBackground.mayWriteSystemWallpaper) root._syncWindowsLockScreen(path);
+         }
+ 
+         if (Config.options.appearance.wallpaperTheming.enableAppsAndShell === false) {
+@@ -533,7 +542,7 @@ Singleton {
+ 
+     function _syncDesktopWallpapers() {
+         const wn = WindowsNative.wallpaper;
+-        if (!wn || !Config.ready || !root._shellProcess) return;
++        if (!wn || !Config.ready || !root._shellProcess || !DesktopBackground.mayWriteSystemWallpaper) return;
+         const active = root.desktopWallpapersActive;
+         if (!active && !root._desktopWallpapersSynced) return;
+         const main = root.stillPath;
+@@ -546,7 +555,7 @@ Singleton {
+ 
+     function _syncSystemWallpaper() {
+         const wn = WindowsNative.wallpaper;
+-        if (!wn || !Config.ready || !root._shellProcess || !root._desktopSyncChecked || root._nativeDesktopWallpapers) return;
++        if (!wn || !Config.ready || !root._shellProcess || !DesktopBackground.mayWriteSystemWallpaper || !root._desktopSyncChecked || root._nativeDesktopWallpapers) return;
+         const main = root.stillPath;
+         if (!main || root.isVideoPath(main)) return;
+         if (root._systemWallpaper === "") {

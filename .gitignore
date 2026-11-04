@@ -12,3 +12,6 @@
 /tools/songrec/bin/
 /tools/songrec/songrec-win/target/
 /tools/vda/bin/
+
+__pycache__/
+*.pyc

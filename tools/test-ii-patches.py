@@ -48,7 +48,7 @@ class ShellPatches(unittest.TestCase):
         for path in ('modules/settings/BackgroundConfig.qml', 'modules/settingsPc/pages/BackgroundConfig.qml', 'modules/common/widgets/WidgetsSubmenu.qml'):
             self.assertIn('Glass widget backgrounds', (self.shell / path).read_text())
         self.git('diff', '--cached', '--check')
-        subprocess.run(['git', '-C', str(self.shell), 'apply', '--index', '--reverse', str(ROOT / 'patches/ii/0001-windows-widget-glass.patch')], check=True)
+        subprocess.run(['git', '-C', str(self.shell), 'apply', '--index', '--reverse', str(ROOT / 'patches/ii/0001-windows-native-desktop.patch')], check=True)
         self.assertEqual(self.git('status', '--porcelain'), '')
 
     def test_modified_source_rejected_without_partial_application(self):

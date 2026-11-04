@@ -33,4 +33,4 @@ The ARM64 package (`ii-windows-<version>-arm64.zip`) is built from the same sour
 
 ## Experimental widget glass in this fork
 
-The ii shell patch includes `FrostedGlass.qml`, `liquidLens.frag`, and its precompiled `liquidLens.frag.qsb` from [pctrade/end4-pC](https://github.com/pctrade/end4-pC) commit `6f461b427a223e4c61c25194764fa5e3192eb36b`, under GPL-3.0. Shader source is included alongside the binary in `patches/ii/0001-windows-widget-glass.patch` and deployed with the shell. See [GLASS.md](GLASS.md).
+The ii shell patch includes `FrostedGlass.qml`, `liquidLens.frag`, and its precompiled `liquidLens.frag.qsb` from [pctrade/end4-pC](https://github.com/pctrade/end4-pC) commit `6f461b427a223e4c61c25194764fa5e3192eb36b`, under GPL-3.0. Shader source is included alongside the binary in `patches/ii/0001-windows-native-desktop.patch` and deployed with the shell. See [GLASS.md](GLASS.md).

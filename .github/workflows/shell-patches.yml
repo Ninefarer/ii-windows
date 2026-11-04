@@ -6,6 +6,9 @@ on:
       - 'patches/ii/**'
       - 'tools/apply-ii-patches.py'
       - 'tools/test-ii-patches.py'
+      - 'tools/test-windows-policy.py'
+      - 'tools/test-wallpaper-ownership.cjs'
+      - 'tools/stage-windows-shell.py'
       - 'sources.lock'
       - '.github/workflows/shell-patches.yml'
   workflow_dispatch:
@@ -34,5 +37,10 @@ jobs:
           git init -q ii
           git -C ii fetch -q --depth 1 "$url" "$sha"
           git -C ii checkout -q FETCH_HEAD
+          git -C ii submodule update -q --init --recursive
       - name: Test patch application and packaging inputs
         run: python tools/test-ii-patches.py ii
+      - name: Test native policies and Windows package contents
+        run: |
+          python tools/apply-ii-patches.py ii
+          python tools/test-windows-policy.py ii
