@@ -108,6 +108,9 @@ jobs:
               f'Validated candidate: https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{run["id"]} (source {run["head_sha"]}). The single-EXE payloads were compared byte-for-byte with that candidate.\n', encoding='utf-8')
           PY
           sha256sum -c *.exe.sha256
+      - name: Upload the installer assets and publish the preview
+        working-directory: installer
+        run: |
           gh release create "$RELEASE_TAG" "$EXE" "$EXE.sha256" \
             --repo "$GITHUB_REPOSITORY" --target "$CANDIDATE_SHA" \
             --prerelease --latest=false --title "end4 Windows preview $RELEASE_TAG" \
