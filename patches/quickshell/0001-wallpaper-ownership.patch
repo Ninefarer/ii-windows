@@ -1,0 +1,203 @@
+diff --git a/src/windows/system/wallpaper.cpp b/src/windows/system/wallpaper.cpp
+index 84e5a4c..08ef1e5 100644
+--- a/src/windows/system/wallpaper.cpp
++++ b/src/windows/system/wallpaper.cpp
+@@ -1,4 +1,5 @@
+ #include "wallpaper.hpp"
++#include "wallpaper_write_policy.hpp"
+ 
+ #include <atomic>
+ #include <string>
+@@ -41,6 +42,7 @@ namespace {
+ Q_LOGGING_CATEGORY(logWallpaper, "quickshell.windows.wallpaper", QtWarningMsg);
+ 
+ std::atomic<bool> gShuttingDown = false;
++WallpaperWritePolicy gWritePolicy;
+ 
+ const wchar_t* const kPersonalizeKey =
+     L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+@@ -91,6 +93,7 @@ public:
+ struct BackgroundWallpaper {
+ 	SRWLOCK lock = SRWLOCK_INIT;
+ 	std::wstring pending;
++	WallpaperWritePolicy::Token pendingToken = 0;
+ 	bool running = false;
+ };
+ 
+@@ -175,7 +178,8 @@ QString readString(HKEY root, const wchar_t* subkey, const wchar_t* name) {
+ 	return QString::fromWCharArray(buffer);
+ }
+ 
+-bool setWallpaperWithoutAnimation(const std::wstring& path) {
++bool setWallpaperWithoutAnimation(const std::wstring& path, WallpaperWritePolicy::Token token) {
++	if (!gWritePolicy.allows(token)) return false;
+ 	writeString(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"WallpaperStyle", L"10");
+ 	writeString(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"TileWallpaper", L"0");
+ 
+@@ -296,8 +300,21 @@ QString Wallpaper::currentWallpaper() {
+ 	return {};
+ }
+ 
++bool Wallpaper::externalControl() const { return gWritePolicy.external(); }
++
++void Wallpaper::setExternalControl(bool external) {
++	if (!gWritePolicy.setExternal(external)) return;
++	auto& state = backgroundWallpaper();
++	AcquireSRWLockExclusive(&state.lock);
++	state.pending.clear();
++	ReleaseSRWLockExclusive(&state.lock);
++	appliedDesktopWallpapers().clear();
++	emit this->externalControlChanged();
++}
++
+ bool Wallpaper::setWallpaper(const QString& path, bool animate) {
+-	if (path.isEmpty()) return false;
++	auto token = gWritePolicy.token();
++	if (path.isEmpty() || !gWritePolicy.allows(token)) return false;
+ 
+ 	auto wpath = QDir::toNativeSeparators(QFileInfo(path).absoluteFilePath()).toStdWString();
+ 	appliedDesktopWallpapers().clear();
+@@ -305,9 +322,11 @@ bool Wallpaper::setWallpaper(const QString& path, bool animate) {
+ 	auto& background = backgroundWallpaper();
+ 	AcquireSRWLockExclusive(&background.lock);
+ 	background.pending = background.running ? wpath : std::wstring();
++	background.pendingToken = token;
+ 	ReleaseSRWLockExclusive(&background.lock);
+ 
+-	if (!animate && setWallpaperWithoutAnimation(wpath)) return true;
++	if (!animate && setWallpaperWithoutAnimation(wpath, token)) return true;
++	if (!gWritePolicy.allows(token)) return false;
+ 
+ 	ComPtr<IDesktopWallpaper> wallpaper;
+ 	auto hr =
+@@ -330,6 +349,10 @@ bool Wallpaper::setWallpaper(const QString& path, bool animate) {
+ 				continue;
+ 			}
+ 
++			if (!gWritePolicy.allows(token)) {
++				CoTaskMemFree(monitorId);
++				return anyOk;
++			}
+ 			auto setHr = wallpaper->SetWallpaper(monitorId, wpath.c_str());
+ 			if (SUCCEEDED(setHr)) {
+ 				anyOk = true;
+@@ -342,7 +365,7 @@ bool Wallpaper::setWallpaper(const QString& path, bool animate) {
+ 		}
+ 	}
+ 
+-	if (!anyOk) {
++	if (!anyOk && gWritePolicy.allows(token)) {
+ 		auto setHr = wallpaper->SetWallpaper(nullptr, wpath.c_str());
+ 		anyOk = SUCCEEDED(setHr);
+ 		if (!anyOk) qCWarning(logWallpaper) << "SetWallpaper(all monitors) failed:" << Qt::hex << setHr;
+@@ -352,13 +375,15 @@ bool Wallpaper::setWallpaper(const QString& path, bool animate) {
+ }
+ 
+ void Wallpaper::setWallpaperInBackground(const QString& path) {
+-	if (path.isEmpty()) return;
++	auto token = gWritePolicy.token();
++	if (path.isEmpty() || !gWritePolicy.allows(token)) return;
+ 
+ 	auto wpath = QDir::toNativeSeparators(QFileInfo(path).absoluteFilePath()).toStdWString();
+ 	auto& state = backgroundWallpaper();
+ 
+ 	AcquireSRWLockExclusive(&state.lock);
+ 	state.pending = std::move(wpath);
++	state.pendingToken = token;
+ 	auto start = !state.running;
+ 	state.running = true;
+ 	ReleaseSRWLockExclusive(&state.lock);
+@@ -375,15 +400,17 @@ void Wallpaper::setWallpaperInBackground(const QString& path) {
+ 			}
+ 
+ 			auto next = std::exchange(state.pending, std::wstring());
++			auto nextToken = state.pendingToken;
+ 			ReleaseSRWLockExclusive(&state.lock);
+ 
+-			setWallpaperWithoutAnimation(next);
++			setWallpaperWithoutAnimation(next, nextToken);
+ 		}
+ 	}).detach();
+ }
+ 
+ bool Wallpaper::setDesktopWallpapers(const QVariantMap& paths, const QString& fallback) {
+-	if (windowsBuild() < 22000) return false;
++	auto token = gWritePolicy.token();
++	if (!gWritePolicy.allows(token) || windowsBuild() < 22000) return false;
+ 
+ 	ComPtr<IServiceProvider> shell;
+ 	auto hr = CoCreateInstance(CLSID_IMMERSIVE_SHELL, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&shell));
+@@ -432,6 +459,7 @@ bool Wallpaper::setDesktopWallpapers(const QVariantMap& paths, const QString& fa
+ 
+ 		auto value = winrt::hstring(native.toStdWString());
+ 		auto* rawValue = static_cast<HSTRING>(winrt::get_abi(value));
++		if (!gWritePolicy.allows(token)) return false;
+ 		attempts++;
+ 		hr = manager->SetDesktopWallpaper(shellDesktop.Get(), rawValue);
+ 		if (FAILED(hr)) {
+diff --git a/src/windows/system/wallpaper.hpp b/src/windows/system/wallpaper.hpp
+index f7ecb10..44af97e 100644
+--- a/src/windows/system/wallpaper.hpp
++++ b/src/windows/system/wallpaper.hpp
+@@ -14,12 +14,16 @@ class Wallpaper: public QObject {
+ 	QML_SINGLETON;
+ 	Q_PROPERTY(bool lockScreenImageSupported READ lockScreenImageSupported NOTIFY lockScreenImageSupportedChanged);
+ 	Q_PROPERTY(bool systemDarkMode READ systemDarkMode NOTIFY systemDarkModeChanged);
++	Q_PROPERTY(bool externalControl READ externalControl WRITE setExternalControl NOTIFY externalControlChanged);
+ 	Q_PROPERTY(QString currentDesktop READ currentDesktop NOTIFY currentDesktopChanged);
+ 	Q_PROPERTY(QVariantList desktops READ desktops NOTIFY desktopsChanged);
+ 
+ public:
+ 	explicit Wallpaper(QObject* parent = nullptr);
+ 
++	[[nodiscard]] bool externalControl() const;
++	void setExternalControl(bool external);
++
+ 	Q_INVOKABLE static QString currentWallpaper();
+ 
+ 	Q_INVOKABLE static bool setWallpaper(const QString& path, bool animate = true);
+@@ -53,6 +57,7 @@ signals:
+ 	void lockScreenImageSupportedChanged();
+ 	void lockScreenImageApplied(bool ok);
+ 	void systemDarkModeChanged();
++	void externalControlChanged();
+ 	void currentDesktopChanged();
+ 	void desktopsChanged();
+ 
+diff --git a/src/windows/system/wallpaper_write_policy.hpp b/src/windows/system/wallpaper_write_policy.hpp
+new file mode 100644
+index 0000000..6db4c06
+--- /dev/null
++++ b/src/windows/system/wallpaper_write_policy.hpp
+@@ -0,0 +1,31 @@
++#pragma once
++
++#include <atomic>
++#include <cstdint>
++
++namespace qs::windows::sys {
++
++class WallpaperWritePolicy {
++public:
++	using Token = std::uint64_t;
++
++	[[nodiscard]] Token token() const { return this->state.load(std::memory_order_acquire); }
++	[[nodiscard]] bool external() const { return (this->token() & 1) != 0; }
++	[[nodiscard]] bool allows(Token token) const { return (token & 1) == 0 && this->token() == token; }
++
++	bool setExternal(bool external) {
++		auto previous = this->token();
++		while (true) {
++			if (((previous & 1) != 0) == external) return false;
++			auto next = ((previous & ~Token(1)) + 2) | Token(external);
++			if (this->state.compare_exchange_weak(
++			        previous, next, std::memory_order_acq_rel, std::memory_order_acquire
++			    )) return true;
++		}
++	}
++
++private:
++	std::atomic<Token> state = 0;
++};
++
++} // namespace qs::windows::sys

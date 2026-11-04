@@ -14,13 +14,13 @@ def apply(shell: Path, series: Path) -> None:
     names = [str(p.resolve()) for p in patches]
     forward = subprocess.run(args + ['--check'] + names, capture_output=True, text=True)
     if forward.returncode:
-        reverse = subprocess.run(args + ['--reverse', '--check'] + names, capture_output=True, text=True)
+        reverse = subprocess.run(args + ['--reverse', '--check', '--whitespace=nowarn'] + names, capture_output=True, text=True)
         if not reverse.returncode:
-            print('ii patches already applied')
+            print(f'Source patches already applied to {shell.name}')
             return
         raise RuntimeError('Shell patch preflight failed; no files changed.\n' + forward.stderr)
     subprocess.run(args + names, check=True)
-    print(f'Applied {len(patches)} ii patch(es)')
+    print(f'Applied {len(patches)} source patch(es) to {shell.name}')
 
 
 def main() -> int:

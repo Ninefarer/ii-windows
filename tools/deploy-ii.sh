@@ -117,6 +117,7 @@ fi
 rm -rf "$D/config/ii"
 mkdir -p "$D/config"
 "${PYTHON:-python3}" "$IIW/tools/stage-windows-shell.py" "$IIW/ii" "$D/config/ii" --report "$D/SHELL-CONTENTS.json"
+"${PYTHON:-python3}" "$IIW/tools/build-provenance.py" "$D/SOURCE-PROVENANCE.json"
 
 QMLCACHE_GEN="${QMLCACHE_GEN:-$IIW/quickshell/tools/qmlcache-bundle.py}"
 QMLCACHEGEN="${QMLCACHEGEN:-$QT_HOST/libexec/qmlcachegen}"

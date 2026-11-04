@@ -6,11 +6,13 @@ This branch is a Windows-first development preview, based on the pinned Quickshe
 
 - New installs default to end4-pC. Other styles and existing explicit choices remain available.
 - Shared text labels and editable fields use a selectable rendering policy: Automatic selects distance fields on Windows, while Linux keeps native raster rendering. Both Settings layouts offer distance, native and curve choices. Fonts, icon glyphs, display scaling and font sizes are not forced.
+- A native C++ wallpaper-write policy rejects writes while an external app owns the desktop. Changing ownership advances an atomic generation, clears pending work and prevents old queued writes from applying after re-entry. A write already inside an OS call cannot be cancelled. The QML owner setting is connected to this backend property.
 - A single `DesktopBackground` service resolves wallpaper ownership and gates wallpaper writes, video playback and glass source availability. `auto` preserves the old draw-own-wallpaper preference. Explicit owners are Windows, ii and an external wallpaper app.
 - External mode stops ii's wallpaper setter and per-desktop synchronization paths from competing with another app. It also stops ii's video layer and preview image. Desktop cards become translucent rather than refracting a stale Windows image. **It does not add live Wallpaper Engine refraction.**
+- Audio controls now wait for an available endpoint, handle speaker/microphone disappearance and route volume shortcuts and corner controls through guarded service methods. This fixes the observed end4 sidebar null-audio exception after restart.
 - The hidden static glass source decodes at the current Qt window DPR, instead of limiting its image to logical pixel dimensions.
 - Shell updates, cached release information, the installer and bug-report links belong to `Ninefarer/ii-windows`. Update cache entries from another distribution are discarded. Native previews must not silently route users back to the upstream build.
-- Windows deployment omits 30 Linux executable helpers (107,530 bytes in the current locked source). It preserves the emoji data stored in `defaults/windows/fuzzel-emoji.sh`, PowerShell helpers, shaders and terminal color data. `SHELL-CONTENTS.json` records included and omitted files.
+- Windows deployment omits 30 Linux executable helpers (107,530 bytes in the current locked source). It preserves the emoji data stored in `defaults/windows/fuzzel-emoji.sh`, PowerShell helpers, shaders and terminal color data. `SHELL-CONTENTS.json` records included and omitted files; `SOURCE-PROVENANCE.json` records the wrapper commit, source revisions and exact patch hashes.
 - The preview workflow builds an x64 package and setup executable, runs installer tests, and runs the existing Windows smoke harness. It uploads artifacts and never publishes or merges a release.
 
 ## Architecture audit
@@ -25,6 +27,7 @@ This branch is a Windows-first development preview, based on the pinned Quickshe
 | Typography | Shared StyledText requested native raster rendering; the user's comparison preferred distance fields at 1920x1080, 100% | Policy now belongs to the port. Other DPI/font combinations still need visual testing |
 | DPI | `panel_window.cpp` reacts to screen scale changes and can recreate embedded windows | Retain it; fix the logical-resolution-only hidden glass image. Validate mixed-DPI transitions and monitor reconnects |
 | Linux services | Most inspected services explicitly branch to native implementations or disable Linux processes | Retain shared QML APIs and compatibility namespaces. Remove Linux executable helpers from the Windows distribution, not arbitrary modules required by imports |
+| Audio device lifetime | The first Windows smoke run reproduced a null default-audio endpoint in end4 QuickSliders after restart | Shared audio methods and controls now guard readiness, disable unavailable controls and tolerate disconnects |
 | First run / settings | Installer and QML each had an ii default; legacy wallpaper settings were independent booleans | Align end4 defaults and expose one ownership policy. Preserve legacy wallpaper intent through `auto` |
 | Release identity | Setup, SelfUpdate and ProblemReport pointed at upstream; cache did not identify its repository | Fork endpoints and cache ownership are corrected before any preview is installed |
 | Process invocation / Unicode | The standalone WPE query printed a path that PowerShell failed to collect | Future integration must use redirected native process output and explicit encoding. The theme test helper is not a native frame provider |
@@ -32,16 +35,16 @@ This branch is a Windows-first development preview, based on the pinned Quickshe
 
 ## Tests and build
 
-Local checks cover patch application/reapplication/reversal, rejection of modified base files without partial writes, actual wallpaper sync function behavior in managed/external modes, legacy owner migration, text-renderer defaults, distribution-aware update caches, and staged Windows package contents. The policy and staging checks run on Linux and Windows in CI. Rust installer tests and the full Windows smoke harness run in the candidate workflow.
+Local checks cover patch application/reapplication/reversal, rejection of modified base files without partial writes, actual wallpaper sync function behavior in managed/external modes, legacy owner migration, text-renderer defaults, distribution-aware update caches, audio readiness/disconnect behavior and staged Windows package contents. The policy and staging checks run on Linux and Windows in CI. A standalone C++ concurrency test exercises stale queued requests across ownership changes without altering Windows settings, and native source patch tests verify reapplication/reversal and rejection of modified source. Rust installer tests and the full Windows smoke harness run in the candidate workflow.
 
 The candidate workflow is `.github/workflows/native-candidate.yml`. Its jobs distinguish policy validation, native compilation/package production, installer-core tests and x64 runtime smoke tests. A QML compile pass is not a visual test. Hosted-runner results do not establish Wallpaper Engine interoperability or real-device performance.
 
-The native source patch is `patches/ii/0001-windows-native-desktop.patch`, generated against the exact ii commit in `sources.lock`. Do not apply the old theme-level Install-Glass or Install-TextRendering scripts on top of a build from this branch; the corresponding features are integrated here.
+The QML source patch is `patches/ii/0001-windows-native-desktop.patch`, and `patches/quickshell/0001-wallpaper-ownership.patch` adds the native write gate. They are generated against the exact source commits in `sources.lock`. Do not apply the old theme-level Install-Glass or Install-TextRendering scripts on top of a build from this branch; the corresponding features are integrated here.
 
-To install a built artifact before there is a GitHub release, extract the artifact containing `ii-windows-setup.exe` and `ii-windows-26.1.1.1-native.1.zip`, then run:
+To install a built artifact before there is a GitHub release, extract the artifact containing `ii-windows-setup.exe` and `ii-windows-26.1.1.1-native.2.zip`, then run:
 
 ```powershell
-.\ii-windows-setup.exe --package .\ii-windows-26.1.1.1-native.1.zip --no-self-update
+.\ii-windows-setup.exe --package .\ii-windows-26.1.1.1-native.2.zip --no-self-update
 ```
 
 This uses the existing installer's local-package path. Review its changes and backup/repair controls before installation. The preview shares the upstream installation paths and settings; it is not a side-by-side installation. No install is performed automatically from this development session.

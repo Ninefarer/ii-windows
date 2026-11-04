@@ -41,3 +41,4 @@ with tempfile.TemporaryDirectory() as temporary:
     assert not (destination / 'killDialog.qml').exists()
     print('Windows staging tests passed:', len(report['omittedLinuxHelpers']), 'Linux helpers omitted;', sum(x['bytes'] for x in report['omittedLinuxHelpers']), 'bytes')
 subprocess.run(['node', str(ROOT / 'tools/test-wallpaper-ownership.cjs'), str(shell)], check=True)
+subprocess.run(['node', str(ROOT / 'tools/test-audio-readiness.cjs'), str(shell)], check=True)

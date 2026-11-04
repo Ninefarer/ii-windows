@@ -47,6 +47,36 @@ jobs:
         python tools/test-windows-policy.py ii
 
         '
+    - name: Check out and patch the native backend
+      run: 'read -r name url sha < <(grep ''^quickshell '' sources.lock)
+
+        git init -q quickshell
+
+        git -C quickshell fetch -q --depth 1 "$url" "$sha"
+
+        git -C quickshell checkout -q FETCH_HEAD
+
+        python tools/apply-ii-patches.py quickshell --series patches/quickshell
+
+        python tools/test-native-patches.py quickshell
+
+        '
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+    - name: Test native queued wallpaper ownership
+      shell: powershell
+      run: '$test = Join-Path $env:RUNNER_TEMP ''wallpaper-policy-test.exe''
+
+        & cl.exe /nologo /std:c++20 /EHsc /W4 /WX /Iquickshell/src/windows tools/wallpaper-policy-test.cpp ("/Fe" + $test)
+
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        & $test
+
+        exit $LASTEXITCODE
+
+        '
   build:
     name: Build x64
     runs-on: windows-2025
@@ -74,6 +104,8 @@ jobs:
       run: "while read -r name url sha; do\n  [ -z \"$name\" ] && continue\n  git init -q \"$name\"\n  git -C \"$name\" fetch -q --depth 1 \"\
         $url\" \"$sha\"\n  git -C \"$name\" checkout -q FETCH_HEAD\n  git -C \"$name\" submodule update -q --init --recursive\n  echo \"$name\
         \ $(git -C \"$name\" rev-parse HEAD)\"\ndone < sources.lock\n"
+    - name: Apply native backend patches
+      run: python tools/apply-ii-patches.py quickshell --series patches/quickshell
     - name: Apply fork shell patches
       run: python tools/apply-ii-patches.py ii
     - name: Paths

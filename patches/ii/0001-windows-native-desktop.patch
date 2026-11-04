@@ -943,8 +943,114 @@ index f5692be..0236f50 100644
              shadowed: sizeMode !== "4x1" && Config.options.background.widgets.shadow
              blurred: Config.options.background.widgets.blurWidgets && sizeMode === "2x2"
  
+diff --git a/modules/ii/nabyIsland/NabyIslandMediaCard.qml b/modules/ii/nabyIsland/NabyIslandMediaCard.qml
+index aa526cd..566a0fa 100644
+--- a/modules/ii/nabyIsland/NabyIslandMediaCard.qml
++++ b/modules/ii/nabyIsland/NabyIslandMediaCard.qml
+@@ -177,7 +177,7 @@ Item {
+         anchors.rightMargin: 6
+         y: 108
+         symbolSize: 20
+-        enabled: Audio.sink !== null
++        enabled: Audio.outputAvailable
+         iconName: root.muted || root.volume <= 0 ? "volume_off" : root.volume < 0.5 ? "volume_down" : "volume_up"
+         downAction: () => Audio.toggleMute()
+     }
+@@ -189,15 +189,11 @@ Item {
+         anchors.verticalCenter: volumeButton.verticalCenter
+         width: 110
+         height: 14
+-        enabled: Audio.sink !== null
++        enabled: Audio.outputAvailable
+         alwaysShowKnob: true
+         value: root.muted ? 0 : root.volume
+         onMoved: value => {
+-            if (!Audio.sink?.audio)
+-                return;
+-            if (Audio.sink.audio.muted)
+-                Audio.sink.audio.muted = false;
+-            Audio.sink.audio.volume = value;
++            Audio.setVolume(value, true);
+         }
+     }
+ }
+diff --git a/modules/ii/nabyIsland/NabyIslandMediaTab.qml b/modules/ii/nabyIsland/NabyIslandMediaTab.qml
+index 8c9f05a..2e39661 100644
+--- a/modules/ii/nabyIsland/NabyIslandMediaTab.qml
++++ b/modules/ii/nabyIsland/NabyIslandMediaTab.qml
+@@ -41,11 +41,7 @@ Item {
+     }
+ 
+     function setVolume(value) {
+-        if (!Audio.sink?.audio)
+-            return;
+-        if (Audio.sink.audio.muted)
+-            Audio.sink.audio.muted = false;
+-        Audio.sink.audio.volume = Math.max(0, Math.min(1, value));
++        Audio.setVolume(Math.max(0, Math.min(1, value)), true);
+     }
+ 
+     component ControlButton: NabyIslandButton {
+diff --git a/modules/ii/screenCorners/ScreenCorners.qml b/modules/ii/screenCorners/ScreenCorners.qml
+index bde3e56..c95aefe 100644
+--- a/modules/ii/screenCorners/ScreenCorners.qml
++++ b/modules/ii/screenCorners/ScreenCorners.qml
+@@ -102,9 +102,7 @@ Scope {
+                         if (cornerWidget.isLeft)
+                             Brightness.decreaseBrightness()
+                         else {
+-                            const currentVolume = Audio.value;
+-                            const step = currentVolume < 0.1 ? 0.01 : 0.02 || 0.2;
+-                            Audio.sink.audio.volume -= step;
++                            Audio.decrementVolume();
+                         }
+                     }
+                     onScrollUp: {
+@@ -113,9 +111,7 @@ Scope {
+                         if (cornerWidget.isLeft)
+                             Brightness.increaseBrightness()
+                         else {
+-                            const currentVolume = Audio.value;
+-                            const step = currentVolume < 0.1 ? 0.01 : 0.02 || 0.2;
+-                            Audio.sink.audio.volume = Math.min(1, Audio.sink.audio.volume + step);
++                            Audio.incrementVolume();
+                         }
+                     }
+                     onMovedAway: {
+diff --git a/modules/ii/sidebarRight/QuickSliders.qml b/modules/ii/sidebarRight/QuickSliders.qml
+index e442c4c..52efadd 100644
+--- a/modules/ii/sidebarRight/QuickSliders.qml
++++ b/modules/ii/sidebarRight/QuickSliders.qml
+@@ -80,10 +80,9 @@ Rectangle {
+             active: Config.options.sidebar.quickSliders.showVolume
+             sourceComponent: QuickSlider {
+                 materialSymbol: "volume_up"
+-                value: Audio.sink.audio.volume
+-                onMoved: {
+-                    Audio.sink.audio.volume = value
+-                }
++                enabled: Audio.outputAvailable
++                value: Audio.sink?.audio?.volume ?? 0
++                onMoved: Audio.setVolume(value)
+             }
+         }
+ 
+@@ -96,10 +95,9 @@ Rectangle {
+             active: Config.options.sidebar.quickSliders.showMic
+             sourceComponent: QuickSlider {
+                 materialSymbol: "mic"
+-                value: Audio.source.audio.volume
+-                onMoved: {
+-                    Audio.source.audio.volume = value
+-                }
++                enabled: Audio.inputAvailable
++                value: Audio.source?.audio?.volume ?? 0
++                onMoved: Audio.setMicVolume(value)
+             }
+         }
+     }
 diff --git a/modules/settings/BackgroundConfig.qml b/modules/settings/BackgroundConfig.qml
-index 6d86c1e..67da234 100644
+index 6d86c1e..12e5214 100644
 --- a/modules/settings/BackgroundConfig.qml
 +++ b/modules/settings/BackgroundConfig.qml
 @@ -585,6 +585,17 @@ ContentPage {
@@ -965,13 +1071,15 @@ index 6d86c1e..67da234 100644
          ConfigSwitch {
              buttonIcon: "lock_person"
              text: Translation.tr("Show widgets on the lock screen")
-@@ -630,6 +641,26 @@ ContentPage {
+@@ -630,6 +641,28 @@ ContentPage {
          icon: "desktop_windows"
          title: Translation.tr("Windows desktop")
  
-+        ConfigSelectionArray {
++        StyledText {
 +            text: Translation.tr("Wallpaper owner")
-+            icon: "wallpaper"
++            color: Appearance.colors.colOnLayer1
++        }
++        ConfigSelectionArray {
 +            currentValue: Config.options.windowsPort.wallpaperOwner
 +            onSelected: newValue => {
 +                Config.options.windowsPort.wallpaperOwner = newValue;
@@ -992,7 +1100,7 @@ index 6d86c1e..67da234 100644
          ConfigSwitch {
              buttonIcon: "wallpaper"
              text: Translation.tr("Put the background behind the desktop icons")
-@@ -645,6 +676,7 @@ ContentPage {
+@@ -645,6 +678,7 @@ ContentPage {
          ConfigSwitch {
              buttonIcon: "animation"
              text: Translation.tr("Draw ii's own wallpaper")
@@ -1111,12 +1219,114 @@ index 6e85149..408bad7 100644
          ContentSection {
              icon: "view_quilt"
              shape: W.MaterialShape.Shape.Cookie9Sided
+diff --git a/services/Audio.qml b/services/Audio.qml
+index 0b39f84..f380283 100644
+--- a/services/Audio.qml
++++ b/services/Audio.qml
+@@ -18,7 +18,9 @@ Singleton {
+     property PwNode source: Pipewire.defaultAudioSource
+     readonly property real hardMaxValue: 2.00 // People keep joking about setting volume to 5172% so...
+     property string audioTheme: Config.options.sounds.theme
+-    property real value: sink?.audio.volume ?? 0
++    property real value: sink?.audio?.volume ?? 0
++    readonly property bool outputAvailable: (root.sink?.ready ?? false) && !!root.sink?.audio
++    readonly property bool inputAvailable: (root.source?.ready ?? false) && !!root.source?.audio
+     
+     function friendlyDeviceName(node) {
+         return (node.nickname || node.description || Translation.tr("Unknown"));
+@@ -64,24 +66,45 @@ Singleton {
+     signal sinkProtectionTriggered(string reason);
+ 
+     // Controls
++    function setVolume(value, unmute = false) {
++        const audio = root.sink?.audio;
++        if (!root.outputAvailable || !audio || !Number.isFinite(value)) return false;
++        if (unmute) audio.muted = false;
++        audio.volume = Math.max(0, Math.min(Platform.isWindows ? 1 : root.hardMaxValue, value));
++        return true;
++    }
++
++    function setMicVolume(value) {
++        const audio = root.source?.audio;
++        if (!root.inputAvailable || !audio || !Number.isFinite(value)) return false;
++        audio.volume = Math.max(0, Math.min(Platform.isWindows ? 1 : root.hardMaxValue, value));
++        return true;
++    }
++
+     function toggleMute() {
+-        Audio.sink.audio.muted = !Audio.sink.audio.muted
++        const audio = root.sink?.audio;
++        if (!root.outputAvailable || !audio) return false;
++        audio.muted = !audio.muted;
++        return true;
+     }
+ 
+     function toggleMicMute() {
+-        Audio.source.audio.muted = !Audio.source.audio.muted
++        const audio = root.source?.audio;
++        if (!root.inputAvailable || !audio) return false;
++        audio.muted = !audio.muted;
++        return true;
+     }
+ 
+     function incrementVolume() {
+-        const currentVolume = Audio.value;
+-        const step = currentVolume < 0.1 ? 0.01 : 0.02 || 0.2;
+-        Audio.sink.audio.volume = Math.min(1, Audio.sink.audio.volume + step);
++        const currentVolume = root.value;
++        const step = currentVolume < 0.1 ? 0.01 : 0.02;
++        return root.setVolume(Math.min(1, currentVolume + step));
+     }
+-    
++
+     function decrementVolume() {
+-        const currentVolume = Audio.value;
+-        const step = currentVolume < 0.1 ? 0.01 : 0.02 || 0.2;
+-        Audio.sink.audio.volume = Math.max(0, Audio.sink.audio.volume - step);
++        const currentVolume = root.value;
++        const step = currentVolume < 0.1 ? 0.01 : 0.02;
++        return root.setVolume(Math.max(0, currentVolume - step));
+     }
+ 
+     function setDefaultSink(node) {
+@@ -103,7 +126,13 @@ Singleton {
+         property real lastVolume: 0
+         function onVolumeChanged() {
+             if (!Config.options.audio.protection.enable) return;
+-            const newVolume = sink.audio.volume;
++            const audio = root.sink?.audio;
++            if (!audio) {
++                lastReady = false;
++                lastVolume = 0;
++                return;
++            }
++            const newVolume = audio.volume;
+             // when resuming from suspend, we should not write volume to avoid pipewire volume reset issues
+             if (isNaN(newVolume) || newVolume === undefined || newVolume === null) {
+                 lastReady = false;
+@@ -119,13 +148,13 @@ Singleton {
+             const maxAllowed = Config.options.audio.protection.maxAllowed / 100;
+ 
+             if (newVolume - lastVolume > maxAllowedIncrease) {
+-                sink.audio.volume = lastVolume;
++                audio.volume = lastVolume;
+                 root.sinkProtectionTriggered(Translation.tr("Illegal increment"));
+             } else if (newVolume > maxAllowed || newVolume > root.hardMaxValue) {
+                 root.sinkProtectionTriggered(Translation.tr("Exceeded max allowed"));
+-                sink.audio.volume = Math.min(lastVolume, maxAllowed);
++                audio.volume = Math.min(lastVolume, maxAllowed);
+             }
+-            lastVolume = sink.audio.volume;
++            lastVolume = audio.volume;
+         }
+     }
+ 
 diff --git a/services/DesktopBackground.qml b/services/DesktopBackground.qml
 new file mode 100644
-index 0000000..80f6543
+index 0000000..30d4122
 --- /dev/null
 +++ b/services/DesktopBackground.qml
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,35 @@
 +pragma Singleton
 +import QtQuick
 +import Quickshell
@@ -1124,6 +1334,25 @@ index 0000000..80f6543
 +import "../modules/common/functions/WindowsPolicy.js" as WindowsPolicy
 +
 +Singleton {
++    id: root
++
++    function syncNativeOwnership() {
++        if (!Platform.isWindows || !Config.ready) return;
++        const backend = WindowsNative.wallpaper;
++        if (backend && backend.externalControl !== undefined) backend.externalControl = root.external;
++    }
++
++    onExternalChanged: syncNativeOwnership()
++    Component.onCompleted: syncNativeOwnership()
++    Connections {
++        target: Config
++        function onReadyChanged() { root.syncNativeOwnership(); }
++    }
++    Connections {
++        target: Platform.isWindows ? WindowsNative : null
++        function onReadyChanged() { root.syncNativeOwnership(); }
++    }
++
 +    readonly property string owner: WindowsPolicy.wallpaperOwner(
 +        Config.options.windowsPort.wallpaperOwner, Config.options.windowsPort.ownWallpaper)
 +    readonly property bool external: Platform.isWindows && owner === "external"
@@ -1191,7 +1420,7 @@ index 3568ba7..8ee7601 100644
              root._cacheDone = true;
              root._startupCheck();
 diff --git a/services/Wallpapers.qml b/services/Wallpapers.qml
-index 66ca64b..372d197 100644
+index 66ca64b..200d33d 100644
 --- a/services/Wallpapers.qml
 +++ b/services/Wallpapers.qml
 @@ -44,7 +44,7 @@ Singleton {
@@ -1266,6 +1495,15 @@ index 66ca64b..372d197 100644
          }
  
          if (Config.options.appearance.wallpaperTheming.enableAppsAndShell === false) {
+@@ -519,7 +528,7 @@ Singleton {
+     }
+ 
+     readonly property string _desktopSyncState: (!Platform.isWindows || !root._shellProcess || !Config.ready || !WindowsNative.wallpaper) ? ""
+-        : JSON.stringify([root.desktopWallpapersActive, root.systemDrawsWallpaper, root._systemDesktopPaths, root.stillPath,
++        : JSON.stringify([DesktopBackground.owner, root.desktopWallpapersActive, root.systemDrawsWallpaper, root._systemDesktopPaths, root.stillPath,
+             root.desktops.map(desktop => desktop.id)])
+     on_DesktopSyncStateChanged: {
+         if (root._desktopSyncState !== "") desktopSyncTimer.restart();
 @@ -533,7 +542,7 @@ Singleton {
  
      function _syncDesktopWallpapers() {
