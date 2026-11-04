@@ -1,0 +1,66 @@
+name: Single EXE preview installer
+on:
+  push:
+    branches: [windows-native-end4]
+    paths: [packaging/**, .github/workflows/offline-installer.yml]
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Successful Windows native candidate run ID
+        required: true
+permissions:
+  actions: read
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_RUN: ${{ inputs.candidate_run }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for the candidate including runtime smoke tests
+        timeout-minutes: 45
+        run: |
+          if [ -z "$CANDIDATE_RUN" ]; then
+            CANDIDATE_RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/native-candidate.yml/runs?branch=windows-native-end4&per_page=1" --jq '.workflow_runs[0].id')
+          fi
+          echo "CANDIDATE_RUN=$CANDIDATE_RUN" >> "$GITHUB_ENV"
+          while true; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN" > candidate.json
+            status=$(python -c 'import json; print(json.load(open("candidate.json"))["status"])')
+            [ "$status" = completed ] && break
+            echo "Waiting for candidate $CANDIDATE_RUN ($status)"
+            sleep 30
+          done
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN" > candidate.json
+          python - <<'PY'
+          import json, os
+          run = json.load(open('candidate.json'))
+          assert run['name'] == 'Windows native candidate'
+          assert run['head_branch'] == 'windows-native-end4'
+          assert run['status'] == 'completed' and run['conclusion'] == 'success', 'candidate has not passed all checks'
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f"ARTIFACT_NAME=ii-windows-windows-native-end4-{run['run_number']}\n")
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ env.CANDIDATE_RUN }}
+          name: ${{ env.ARTIFACT_NAME }}
+          path: candidate
+      - name: Install packaging tools
+        run: sudo apt-get update -qq && sudo apt-get install -y nsis p7zip-full
+      - name: Build the single EXE
+        run: python3 packaging/build-single-exe.py candidate out
+      - name: Verify bundled payloads match the tested build
+        run: |
+          7z x out/*.exe -overify
+          cmp candidate/ii-windows-setup.exe verify/ii-windows-setup.exe
+          cmp candidate/ii-windows-*.zip verify/payload.zip
+          cp candidate.json out/CANDIDATE-RUN.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ii-windows-single-exe
+          path: out/
+          if-no-files-found: error
