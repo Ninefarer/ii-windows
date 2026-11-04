@@ -1161,6 +1161,19 @@ index 5719f95..1471f32 100644
      ContentSection {
          icon: "view_quilt"
          title: Translation.tr("Panel style")
+diff --git a/modules/settings/QuickConfig.qml b/modules/settings/QuickConfig.qml
+index 359f677..e24fe27 100644
+--- a/modules/settings/QuickConfig.qml
++++ b/modules/settings/QuickConfig.qml
+@@ -127,7 +127,7 @@ ContentPage {
+                                     key: "Ctrl"
+                                 }
+                                 KeyboardKey {
+-                                    key: Config.options.cheatsheet.superKey ?? "󰖳"
++                                    key: Platform.isWindows ? "Win" : (Config.options.cheatsheet.superKey ?? "󰖳")
+                                 }
+                                 StyledText {
+                                     Layout.alignment: Qt.AlignVCenter
 diff --git a/modules/settingsPc/pages/BackgroundConfig.qml b/modules/settingsPc/pages/BackgroundConfig.qml
 index 742930c..582811f 100644
 --- a/modules/settingsPc/pages/BackgroundConfig.qml
@@ -1245,6 +1258,19 @@ index 6e85149..408bad7 100644
          ContentSection {
              icon: "view_quilt"
              shape: W.MaterialShape.Shape.Cookie9Sided
+diff --git a/modules/settingsPc/pages/QuickConfig.qml b/modules/settingsPc/pages/QuickConfig.qml
+index b87e2d9..d150b61 100644
+--- a/modules/settingsPc/pages/QuickConfig.qml
++++ b/modules/settingsPc/pages/QuickConfig.qml
+@@ -662,7 +662,7 @@ ContentPage {
+                                         key: "Ctrl"
+                                     }
+                                     W.KeyboardKey {
+-                                        key: Config.options.cheatsheet.superKey ?? "󰖳"
++                                        key: Platform.isWindows ? "Win" : (Config.options.cheatsheet.superKey ?? "󰖳")
+                                     }
+                                     W.StyledText {
+                                         Layout.alignment: Qt.AlignVCenter
 diff --git a/services/Audio.qml b/services/Audio.qml
 index 0b39f84..f380283 100644
 --- a/services/Audio.qml

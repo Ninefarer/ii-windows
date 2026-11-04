@@ -42,10 +42,10 @@ The candidate workflow is `.github/workflows/native-candidate.yml`. Its jobs dis
 
 The QML source patch is `patches/ii/0001-windows-native-desktop.patch`, and `patches/quickshell/0001-wallpaper-ownership.patch` adds the native write gate. They are generated against the exact source commits in `sources.lock`. Do not apply the old theme-level Install-Glass or Install-TextRendering scripts on top of a build from this branch; the corresponding features are integrated here.
 
-To install a built artifact before there is a GitHub release, extract the artifact containing `ii-windows-setup.exe` and `ii-windows-26.1.1.1-native.3.zip`, then run:
+To install a built artifact before there is a GitHub release, extract the artifact containing `ii-windows-setup.exe` and `ii-windows-26.1.1.1-native.4.zip`, then run:
 
 ```powershell
-.\ii-windows-setup.exe --package .\ii-windows-26.1.1.1-native.3.zip --no-self-update
+.\ii-windows-setup.exe --package .\ii-windows-26.1.1.1-native.4.zip --no-self-update
 ```
 
 This uses the existing installer's local-package path. Review its changes and backup/repair controls before installation. The preview shares the upstream installation paths and settings; it is not a side-by-side installation. No install is performed automatically from this development session.
