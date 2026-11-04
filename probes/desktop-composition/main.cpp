@@ -179,7 +179,7 @@ bool configureHostBackdrop(Card& card) {
         return false;
     }
 }
-bool createCard(const wchar_t* name, HWND parent, int x, int y, bool accent) {
+bool createCard(const wchar_t* name, HWND parent, int x, int y, bool accent, bool bottom = false) {
     auto card = std::make_unique<Card>();
     card->name = name;
     const DWORD style = parent != nullptr ? WS_CHILD : WS_POPUP;
@@ -194,7 +194,11 @@ bool createCard(const wchar_t* name, HWND parent, int x, int y, bool accent) {
         + L" parent=" + hexValue(reinterpret_cast<std::uintptr_t>(GetParent(hwnd)))
         + L" DPI=" + std::to_wstring(GetDpiForWindow(hwnd)));
     if (accent) configureAccent(*card); else configureHostBackdrop(*card);
-    SetWindowPos(hwnd, HWND_TOP, x, y, CARD_WIDTH, CARD_HEIGHT, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    SetWindowPos(hwnd, bottom ? HWND_BOTTOM : HWND_TOP, x, y, CARD_WIDTH, CARD_HEIGHT, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    if (bottom) {
+        log(card->name + L": bottom ordering requested; above=" + className(GetWindow(hwnd, GW_HWNDPREV))
+            + L", below=" + className(GetWindow(hwnd, GW_HWNDNEXT)));
+    }
     cards.push_back(std::move(card));
     return true;
 }
@@ -204,14 +208,16 @@ void runCards(HWND host, const RECT& screen) {
     log(L"--- Starting probes; API acceptance is NOT proof of live wallpaper blur ---");
     log(L"Desktop host=" + hexValue(reinterpret_cast<std::uintptr_t>(host)) + L" class=" + className(host));
     if (host == nullptr) { log(L"No supported Explorer icon host found. No desktop windows were created."); return; }
-    const int left = screen.left + ((screen.right - screen.left) - (3 * CARD_WIDTH + 2 * GAP)) / 2;
+    const int left = screen.left + ((screen.right - screen.left) - (4 * CARD_WIDTH + 3 * GAP)) / 2;
     const int top = screen.bottom - CARD_HEIGHT - 85;
     POINT position {left, top};
     MapWindowPoints(HWND_DESKTOP, host, &position, 1);
     createCard(L"A: Explorer child / host backdrop", host, position.x, position.y, false);
     createCard(L"B: Explorer child / accent blur", host, position.x + CARD_WIDTH + GAP, position.y, true);
     createCard(L"C: top-level / host backdrop control", nullptr, left + 2 * (CARD_WIDTH + GAP), top, false);
-    log(L"Three rectangles near the bottom of the primary screen: A left, B middle, C right.");
+    createCard(L"D: top-level / bottom ordered", nullptr, left + 3 * (CARD_WIDTH + GAP), top, false, true);
+    log(L"Four rectangles near the bottom of the primary screen: A, B, C, D from left to right.");
+    log(L"For D, also test an ordinary app over it and Win+D; no always-on-top flag is used.");
     log(L"Report whether each shows the MOVING wallpaper, static wallpaper, black, clear, or nothing.");
     log(L"No capture, wallpaper writes, duplicate renderer, Explorer restart, or foreign-window reparenting was used.");
 }
@@ -241,7 +247,7 @@ LRESULT CALLBACK controlProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
     switch (message) {
     case WM_CREATE:
         controller = hwnd;
-        CreateWindowW(L"STATIC", L"Wallpaper Engine desktop blur test (not an installer)\nA = child HostBackdrop | B = child accent | C = top-level control\nKeep Wallpaper Engine moving; observe the three rectangles near the bottom.\nClose this window to remove every probe rectangle.",
+        CreateWindowW(L"STATIC", L"Wallpaper Engine desktop blur test (not an installer)\nA/B = child tests | C = top-level control | D = bottom-ordered top-level\nKeep Wallpaper Engine moving; observe the four rectangles near the bottom.\nClose this window to remove every probe rectangle.",
             WS_CHILD | WS_VISIBLE, 12, 10, 740, 76, hwnd, nullptr, nullptr, nullptr);
         CreateWindowW(L"BUTTON", L"Copy report", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
             12, 92, 120, 30, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(1)), nullptr, nullptr);
@@ -322,9 +328,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
             auto host = CreateWindowW(CONTROL_CLASS, L"probe self-test", WS_OVERLAPPEDWINDOW,
                 0, 0, 1000, 800, nullptr, nullptr, instance, nullptr);
             winrt::check_bool(host != nullptr);
-            RECT screen {0, 0, 1000, 800};
+            RECT screen {0, 0, 1400, 800};
             runCards(host, screen);
-            if (cards.size() != 3) winrt::throw_hresult(E_FAIL);
+            if (cards.size() != 4) winrt::throw_hresult(E_FAIL);
             std::vector<HWND> handles;
             for (const auto& card : cards) {
                 winrt::check_bool(card->hwnd != nullptr);
@@ -333,7 +339,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
             cards.clear();
             for (auto hwnd : handles) winrt::check_bool(!IsWindow(hwnd));
             DestroyWindow(host);
-            log(L"SELFTEST PASS: three own windows created and destroyed; no foreign desktop windows modified.");
+            log(L"SELFTEST PASS: four own windows created and destroyed; no foreign desktop windows modified.");
         } else {
             auto window = CreateWindowW(CONTROL_CLASS, L"ii / Wallpaper Engine desktop composition probe",
                 WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX & ~WS_THICKFRAME, 60, 60, 790, 450,

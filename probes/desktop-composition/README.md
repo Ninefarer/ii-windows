@@ -6,20 +6,25 @@ Engine's configuration, or the Windows wallpaper. Close its control window to
 remove all probe rectangles.
 
 Keep Wallpaper Engine running with an animated wallpaper. Open
-`ii-desktop-glass-probe.exe`. Three rectangles appear near the bottom of the
+`ii-desktop-glass-probe.exe`. Four rectangles appear near the bottom of the
 primary monitor:
 
 - **A, left:** a HostBackdropBrush in an Explorer child window, matching the
   desktop-widget hierarchy.
 - **B, middle:** the existing backend's accent blur mechanism in an Explorer
   child window. This uses an undocumented Windows API and may be unsupported.
-- **C, right:** a top-level HostBackdropBrush control for comparison. It is
+- **C, third:** a top-level HostBackdropBrush control for comparison. It is
   temporary and is not a proposed always-on-top desktop solution.
+
+- **D, right:** a top-level HostBackdropBrush placed at `HWND_BOTTOM`, with no
+  always-on-top flag. If visible, also test whether ordinary applications cover
+  it and whether it survives Win+D appropriately. This evaluates an alternative
+  desktop topology, not a verified replacement for ii's desktop hosting.
 
 Observe whether each rectangle shows the **moving** wallpaper through blur,
 the static Windows wallpaper, a black/clear area, or nothing. API acceptance in
 the report does not establish correct visual behavior. Use **Copy report** to
-share the API results along with your observation for A/B/C.
+share the API results along with your observation for A/B/C/D.
 
 The report is saved at
 `%LOCALAPPDATA%\ii-windows\diagnostics\desktop-composition-probe.txt`.
