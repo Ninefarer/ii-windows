@@ -112,6 +112,8 @@ else
 	echo "warning: no $MICROTEX_DIR/LaTeX.exe - LaTeX rendering in the AI chat will be unavailable" >&2
 fi
 
+"${PYTHON:-python3}" "$IIW/tools/apply-ii-patches.py" "$IIW/ii"
+
 rm -rf "$D/config/ii"
 mkdir -p "$D/config"
 (cd "$IIW/ii" && git ls-files -z --recurse-submodules) | while IFS= read -r -d '' f; do

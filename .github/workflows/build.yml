@@ -44,6 +44,9 @@ jobs:
             echo "$name $(git -C "$name" rev-parse HEAD)"
           done < sources.lock
 
+      - name: Apply fork shell patches
+        run: python tools/apply-ii-patches.py ii
+
       - name: Paths
         run: |
           tmp="$(cygpath -m "$RUNNER_TEMP")"
@@ -410,6 +413,9 @@ jobs:
             echo "$name $(git -C "$name" rev-parse HEAD)"
           done < sources.lock
 
+      - name: Apply fork shell patches
+        run: python tools/apply-ii-patches.py ii
+
       - name: Paths
         run: |
           tmp="$(cygpath -m "$RUNNER_TEMP")"
@@ -550,6 +556,9 @@ jobs:
           git -C ii checkout -q FETCH_HEAD
           git -C ii submodule update -q --init --recursive
 
+      - name: Apply fork shell patches
+        run: python tools/apply-ii-patches.py ii
+
       - uses: actions/download-artifact@v4
         with:
           name: ii-windows-${{ github.ref_name }}-${{ github.run_number }}
@@ -609,6 +618,9 @@ jobs:
           git -C ii fetch -q --depth 1 "$url" "$sha"
           git -C ii checkout -q FETCH_HEAD
           git -C ii submodule update -q --init --recursive
+
+      - name: Apply fork shell patches
+        run: python tools/apply-ii-patches.py ii
 
       - uses: actions/download-artifact@v4
         with:
