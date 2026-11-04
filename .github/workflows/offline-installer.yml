@@ -56,8 +56,8 @@ jobs:
       - name: Verify bundled payloads match the tested build
         run: |
           7z x out/*.exe -overify
-          cmp candidate/ii-windows-setup.exe verify/ii-windows-setup.exe
-          cmp candidate/ii-windows-*.zip verify/payload.zip
+          cmp candidate/ii-windows-setup.exe 'verify/$PLUGINSDIR/ii-windows-setup.exe'
+          cmp candidate/ii-windows-*.zip 'verify/$PLUGINSDIR/payload.zip'
           cp candidate.json out/CANDIDATE-RUN.json
       - uses: actions/upload-artifact@v4
         with:
