@@ -1,0 +1,38 @@
+name: Publish validated preview installer
+on:
+  push:
+    branches: [windows-native-end4]
+    paths: [.github/workflows/publish-preview.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Require the validated installer packaging run
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/41919856437" > run.json
+          python - <<'PY'
+          import json
+          r = json.load(open('run.json'))
+          assert r['conclusion'] == 'success'
+          assert r['head_sha'] == '795b797f0c4616df0fbfe15a6e4440c795ff088c'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 41919856437
+          name: ii-windows-single-exe
+          path: installer
+      - name: Upload installer and publish the requested preview release
+        working-directory: installer
+        run: |
+          sha256sum -c ii-windows-26.1.1.1-native.2-x64-offline-setup.exe.sha256
+          gh release upload v26.1.1.1-native.2 \
+            ii-windows-26.1.1.1-native.2-x64-offline-setup.exe \
+            ii-windows-26.1.1.1-native.2-x64-offline-setup.exe.sha256 \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit v26.1.1.1-native.2 --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
