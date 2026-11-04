@@ -1271,6 +1271,64 @@ index b87e2d9..d150b61 100644
                                      }
                                      W.StyledText {
                                          Layout.alignment: Qt.AlignVCenter
+diff --git a/modules/settingsPc/widgets/ConfigTextArea.qml b/modules/settingsPc/widgets/ConfigTextArea.qml
+index 4f9a40e..b353327 100644
+--- a/modules/settingsPc/widgets/ConfigTextArea.qml
++++ b/modules/settingsPc/widgets/ConfigTextArea.qml
+@@ -113,7 +113,7 @@ RowLayout {
+             color: root.colOnBackground
+             selectedTextColor: Appearance.colors.colOnSecondaryContainer
+             selectionColor: Appearance.colors.colSecondaryContainer
+-            renderType: Text.NativeRendering
++            renderType: Appearance.textRenderType
+             background: null
+             padding: 0
+             font {
+diff --git a/modules/waffle/looks/WText.qml b/modules/waffle/looks/WText.qml
+index ab6dd60..0e3043d 100644
+--- a/modules/waffle/looks/WText.qml
++++ b/modules/waffle/looks/WText.qml
+@@ -1,9 +1,10 @@
++import qs.modules.common
+ import QtQuick
+ 
+ Text {
+     id: root
+ 
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     verticalAlignment: Text.AlignVCenter
+     color: Looks.colors.fg
+ 
+diff --git a/modules/waffle/looks/WTextField.qml b/modules/waffle/looks/WTextField.qml
+index a3cc9db..6279956 100644
+--- a/modules/waffle/looks/WTextField.qml
++++ b/modules/waffle/looks/WTextField.qml
+@@ -7,7 +7,7 @@ TextField {
+     id: root
+     
+     clip: true
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     verticalAlignment: Text.AlignVCenter
+     color: Looks.colors.fg
+ 
+diff --git a/modules/waffle/looks/WTextInput.qml b/modules/waffle/looks/WTextInput.qml
+index 84bed18..80b9a38 100644
+--- a/modules/waffle/looks/WTextInput.qml
++++ b/modules/waffle/looks/WTextInput.qml
+@@ -1,9 +1,10 @@
++import qs.modules.common
+ import QtQuick
+ import QtQuick.Controls
+ 
+ TextInput {
+     id: root
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     verticalAlignment: Text.AlignVCenter
+     color: Looks.colors.fg
+ 
 diff --git a/services/Audio.qml b/services/Audio.qml
 index 0b39f84..f380283 100644
 --- a/services/Audio.qml
