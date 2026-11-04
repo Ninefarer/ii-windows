@@ -86,6 +86,19 @@ index 0000000..4607cde
 +function acceptsUpdateCache(cache, repository) {
 +    return cache !== null && typeof cache === "object" && cache.repository === repository;
 +}
+diff --git a/modules/common/models/quickToggles/EasyEffectsToggle.qml b/modules/common/models/quickToggles/EasyEffectsToggle.qml
+index 4f76c09..d3cc9d1 100644
+--- a/modules/common/models/quickToggles/EasyEffectsToggle.qml
++++ b/modules/common/models/quickToggles/EasyEffectsToggle.qml
+@@ -22,7 +22,7 @@ QuickToggleModel {
+     }
+ 
+     altAction: () => {
+-        Quickshell.execDetached(["bash", "-c", "flatpak run com.github.wwmm.easyeffects || easyeffects"])
++        EasyEffects.openConfiguration()
+         GlobalStates.sidebarRightOpen = false
+     }
+ 
 diff --git a/modules/common/widgets/FrostedGlass.qml b/modules/common/widgets/FrostedGlass.qml
 new file mode 100644
 index 0000000..17561fe
@@ -1049,6 +1062,19 @@ index e442c4c..52efadd 100644
              }
          }
      }
+diff --git a/modules/ii/sidebarRight/quickToggles/classicStyle/EasyEffectsToggle.qml b/modules/ii/sidebarRight/quickToggles/classicStyle/EasyEffectsToggle.qml
+index 0bbe22d..8a5f826 100644
+--- a/modules/ii/sidebarRight/quickToggles/classicStyle/EasyEffectsToggle.qml
++++ b/modules/ii/sidebarRight/quickToggles/classicStyle/EasyEffectsToggle.qml
+@@ -21,7 +21,7 @@ QuickToggleButton {
+     }
+ 
+     altAction: () => {
+-        Quickshell.execDetached(["bash", "-c", "flatpak run com.github.wwmm.easyeffects || easyeffects"])
++        EasyEffects.openConfiguration()
+         GlobalStates.sidebarRightOpen = false
+     }
+ 
 diff --git a/modules/settings/BackgroundConfig.qml b/modules/settings/BackgroundConfig.qml
 index 6d86c1e..12e5214 100644
 --- a/modules/settings/BackgroundConfig.qml
@@ -1362,6 +1388,31 @@ index 0000000..30d4122
 +    readonly property bool mayDrawVideo: !external
 +    readonly property string glassSource: external ? "unavailable" : "static-image"
 +}
+diff --git a/services/EasyEffects.qml b/services/EasyEffects.qml
+index 040c51c..990f996 100644
+--- a/services/EasyEffects.qml
++++ b/services/EasyEffects.qml
+@@ -16,13 +16,20 @@ Singleton {
+     property bool active: false
+ 
+     function fetchAvailability() {
++        if (Platform.isWindows) return;
+         fetchAvailabilityProc.running = true
+     }
+ 
+     function fetchActiveState() {
++        if (Platform.isWindows) return;
+         fetchActiveStateProc.running = true
+     }
+ 
++    function openConfiguration() {
++        if (Platform.isWindows) return;
++        Quickshell.execDetached(["bash", "-c", "flatpak run com.github.wwmm.easyeffects || easyeffects"]);
++    }
++
+     function disable() {
+         if (Platform.isWindows) return;
+         root.active = false
 diff --git a/services/ProblemReport.qml b/services/ProblemReport.qml
 index a5971db..e720e8e 100644
 --- a/services/ProblemReport.qml

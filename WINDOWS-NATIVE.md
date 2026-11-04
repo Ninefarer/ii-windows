@@ -9,6 +9,7 @@ This branch is a Windows-first development preview, based on the pinned Quickshe
 - A native C++ wallpaper-write policy rejects writes while an external app owns the desktop. Changing ownership advances an atomic generation, clears pending work and prevents old queued writes from applying after re-entry. A write already inside an OS call cannot be cancelled. The QML owner setting is connected to this backend property.
 - A single `DesktopBackground` service resolves wallpaper ownership and gates wallpaper writes, video playback and glass source availability. `auto` preserves the old draw-own-wallpaper preference. Explicit owners are Windows, ii and an external wallpaper app.
 - External mode stops ii's wallpaper setter and per-desktop synchronization paths from competing with another app. It also stops ii's video layer and preview image. Desktop cards become translucent rather than refracting a stale Windows image. **It does not add live Wallpaper Engine refraction.**
+- Linux-only EasyEffects refresh and configuration entry points stay inert on Windows, including refresh calls from toggle initialization.
 - Audio controls now wait for an available endpoint, handle speaker/microphone disappearance and route volume shortcuts and corner controls through guarded service methods. This fixes the observed end4 sidebar null-audio exception after restart.
 - The hidden static glass source decodes at the current Qt window DPR, instead of limiting its image to logical pixel dimensions.
 - Shell updates, cached release information, the installer and bug-report links belong to `Ninefarer/ii-windows`. Update cache entries from another distribution are discarded. Native previews must not silently route users back to the upstream build.
@@ -41,10 +42,10 @@ The candidate workflow is `.github/workflows/native-candidate.yml`. Its jobs dis
 
 The QML source patch is `patches/ii/0001-windows-native-desktop.patch`, and `patches/quickshell/0001-wallpaper-ownership.patch` adds the native write gate. They are generated against the exact source commits in `sources.lock`. Do not apply the old theme-level Install-Glass or Install-TextRendering scripts on top of a build from this branch; the corresponding features are integrated here.
 
-To install a built artifact before there is a GitHub release, extract the artifact containing `ii-windows-setup.exe` and `ii-windows-26.1.1.1-native.2.zip`, then run:
+To install a built artifact before there is a GitHub release, extract the artifact containing `ii-windows-setup.exe` and `ii-windows-26.1.1.1-native.3.zip`, then run:
 
 ```powershell
-.\ii-windows-setup.exe --package .\ii-windows-26.1.1.1-native.2.zip --no-self-update
+.\ii-windows-setup.exe --package .\ii-windows-26.1.1.1-native.3.zip --no-self-update
 ```
 
 This uses the existing installer's local-package path. Review its changes and backup/repair controls before installation. The preview shares the upstream installation paths and settings; it is not a side-by-side installation. No install is performed automatically from this development session.
