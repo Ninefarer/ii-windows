@@ -1030,6 +1030,45 @@ index bde3e56..c95aefe 100644
                          }
                      }
                      onMovedAway: {
+diff --git a/modules/ii/sidebarLeft/Anime.qml b/modules/ii/sidebarLeft/Anime.qml
+index a792dfb..f3b953d 100644
+--- a/modules/ii/sidebarLeft/Anime.qml
++++ b/modules/ii/sidebarLeft/Anime.qml
+@@ -371,7 +371,7 @@ Item {
+                     Layout.fillWidth: true
+                     padding: 10
+                     color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
+-                    renderType: Text.NativeRendering
++                    renderType: Appearance.textRenderType
+                     placeholderText: Translation.tr('Enter tags, or "%1" for commands').arg(root.commandPrefix)
+ 
+                     background: null
+diff --git a/modules/ii/sidebarLeft/aiChat/MessageCodeBlock.qml b/modules/ii/sidebarLeft/aiChat/MessageCodeBlock.qml
+index 3ddba66..0d831fb 100644
+--- a/modules/ii/sidebarLeft/aiChat/MessageCodeBlock.qml
++++ b/modules/ii/sidebarLeft/aiChat/MessageCodeBlock.qml
+@@ -223,7 +223,7 @@ ColumnLayout {
+                         Layout.fillWidth: true
+                         readOnly: !editing
+                         selectByMouse: enableMouseSelection || editing
+-                        renderType: Text.NativeRendering
++                        renderType: Appearance.textRenderType
+                         font.family: Appearance.font.family.monospace
+                         font.hintingPreference: Font.PreferNoHinting // Prevent weird bold text
+                         font.pixelSize: Appearance.font.pixelSize.small
+diff --git a/modules/ii/sidebarLeft/aiChat/MessageTextBlock.qml b/modules/ii/sidebarLeft/aiChat/MessageTextBlock.qml
+index 983b0df..21d5887 100644
+--- a/modules/ii/sidebarLeft/aiChat/MessageTextBlock.qml
++++ b/modules/ii/sidebarLeft/aiChat/MessageTextBlock.qml
+@@ -152,7 +152,7 @@ ColumnLayout {
+             Layout.fillWidth: true
+             readOnly: !editing
+             selectByMouse: enableMouseSelection || editing
+-            renderType: Text.NativeRendering
++            renderType: Appearance.textRenderType
+             font.family: Appearance.font.family.reading
+             font.hintingPreference: Font.PreferNoHinting // Prevent weird bold text
+             font.pixelSize: Appearance.font.pixelSize.small
 diff --git a/modules/ii/sidebarRight/QuickSliders.qml b/modules/ii/sidebarRight/QuickSliders.qml
 index e442c4c..52efadd 100644
 --- a/modules/ii/sidebarRight/QuickSliders.qml
@@ -1075,6 +1114,45 @@ index 0bbe22d..8a5f826 100644
          GlobalStates.sidebarRightOpen = false
      }
  
+diff --git a/modules/ii/sidebarRight/todo/TodoWidget.qml b/modules/ii/sidebarRight/todo/TodoWidget.qml
+index de364f3..673714f 100644
+--- a/modules/ii/sidebarRight/todo/TodoWidget.qml
++++ b/modules/ii/sidebarRight/todo/TodoWidget.qml
+@@ -174,7 +174,7 @@ Item {
+                     Layout.rightMargin: 16
+                     padding: 10
+                     color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
+-                    renderType: Text.NativeRendering
++                    renderType: Appearance.textRenderType
+                     selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
+                     selectionColor: Appearance.colors.colSecondaryContainer
+                     placeholderText: Translation.tr("Task description")
+diff --git a/modules/ii/spotlight/Spotlight.qml b/modules/ii/spotlight/Spotlight.qml
+index 26bab6b..1a91393 100644
+--- a/modules/ii/spotlight/Spotlight.qml
++++ b/modules/ii/spotlight/Spotlight.qml
+@@ -613,7 +613,7 @@ q="$1"; h="$2"
+                         placeholderText: root.currentMode?.placeholder ?? Translation.tr("Spotlight search")
+                         selectedTextColor: Appearance.colors.colOnSecondaryContainer
+                         selectionColor: Appearance.colors.colSecondaryContainer
+-                        renderType: Text.NativeRendering
++                        renderType: Appearance.textRenderType
+                         font {
+                             family: Appearance.font.family.main
+                             pixelSize: Appearance.font.pixelSize.normal
+diff --git a/modules/ii/wallpaperSelector/WallhavenSettingsPopup.qml b/modules/ii/wallpaperSelector/WallhavenSettingsPopup.qml
+index eb9af9d..a0ee027 100644
+--- a/modules/ii/wallpaperSelector/WallhavenSettingsPopup.qml
++++ b/modules/ii/wallpaperSelector/WallhavenSettingsPopup.qml
+@@ -462,7 +462,7 @@ WindowDialog {
+                         pixelSize: Appearance.font.pixelSize.small
+                         hintingPreference: Font.PreferFullHinting
+                     }
+-                    renderType: Text.NativeRendering
++                    renderType: Appearance.textRenderType
+                     background: Rectangle {
+                         color: Appearance.colors.colLayer1
+                         radius: Appearance.rounding.small
 diff --git a/modules/settings/BackgroundConfig.qml b/modules/settings/BackgroundConfig.qml
 index 6d86c1e..12e5214 100644
 --- a/modules/settings/BackgroundConfig.qml

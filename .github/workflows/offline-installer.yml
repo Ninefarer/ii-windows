@@ -102,7 +102,7 @@ jobs:
               f.write(f'RELEASE_TAG=v{version}\nEXE={name}\nCANDIDATE_SHA={run["head_sha"]}\n')
           pathlib.Path('release-notes.md').write_text(
               'Windows x64 development preview. Download the offline setup EXE and open it; no separate package or PowerShell command is required. Uses the existing ii installation and settings.\n\n'
-              'This preview routes Windows-style labels and text fields through the selected Qt text renderer, including controls previously hardcoded to native raster rendering. The Honkai theme selects Distance field. Fonts, font sizes, icon rendering and display scaling are unchanged. Windows wallpaper shortcut hints now use Win.\n\n'
+              'This preview routes Windows-style labels and text fields through the selected Qt text renderer, including end4 search, chat, to-do and wallpaper controls previously hardcoded to native raster rendering. The Honkai theme selects Distance field. Fonts, font sizes, icon rendering and display scaling are unchanged. Windows wallpaper shortcut hints now use Win.\n\n'
               'Select Settings > Interface > Text rendering > Distance field, then fully restart ii and Settings. Use only the base theme Install.ps1; skip the old shell-overwrite glass/text installers.\n\n'
               'This remains an incomplete Windows port. Live Wallpaper Engine refraction is unsupported. Hosted-runner screenshot and font-folder-lock limitations and real-device desktop/DPI testing remain outstanding.\n\n'
               f'Validated candidate: https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{run["id"]} (source {run["head_sha"]}). The single-EXE payloads were compared byte-for-byte with that candidate.\n', encoding='utf-8')
