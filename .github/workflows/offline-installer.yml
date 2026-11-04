@@ -9,7 +9,7 @@ on:
         description: Successful Windows native candidate run ID
         required: true
       publish_release:
-        description: Publish the validated EXE as a GitHub prerelease
+        description: Publish the validated EXE to an existing draft prerelease
         type: boolean
         default: false
 permissions:
@@ -111,7 +111,8 @@ jobs:
       - name: Upload the installer assets and publish the preview
         working-directory: installer
         run: |
-          gh release create "$RELEASE_TAG" "$EXE" "$EXE.sha256" \
-            --repo "$GITHUB_REPOSITORY" --target "$CANDIDATE_SHA" \
-            --prerelease --latest=false --title "end4 Windows preview $RELEASE_TAG" \
-            --notes-file release-notes.md
+          draft=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
+          [ "$draft" = true ] || { echo "An existing draft release is required; published releases are immutable."; exit 1; }
+          gh release upload "$RELEASE_TAG" "$EXE" "$EXE.sha256" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --draft=false --prerelease --latest=false --notes-file release-notes.md
