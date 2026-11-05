@@ -1,5 +1,8 @@
 name: Settings panel regression probe
 on:
+  push:
+    branches: [windows-native-end4]
+    paths: [.github/workflows/settings-panel-probe.yml]
   workflow_dispatch:
 permissions:
   actions: read
