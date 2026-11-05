@@ -58,8 +58,8 @@ ShellRoot {
         id: window
         title: "ii Settings layout test"
         visible: true
-        width: root.widths[root.index]
-        height: 520
+        implicitWidth: root.widths[root.index]
+        implicitHeight: 520
         color: "#18181b"
         Pages.BackgroundConfig { id: page; anchors.fill: parent }
     }
