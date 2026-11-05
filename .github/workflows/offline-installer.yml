@@ -113,7 +113,7 @@ jobs:
             Write-Host "WebView2 bootstrap exit: $($p.ExitCode)"
           }
           Get-ChildItem "${env:ProgramFiles(x86)}/Microsoft/EdgeWebView/Application/*/msedgewebview2.exe" -ErrorAction Stop | Select-Object FullName
-      - name: Open finished EXE and verify actual Setup source selection
+      - name: Capture finished EXE Install options for source review
         shell: powershell
         run: |
           $exe = Get-ChildItem installer-test -Filter '*-x64-offline-setup.exe' | Select-Object -First 1

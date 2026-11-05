@@ -22,6 +22,10 @@ public static class InstallerMouse {
   },IntPtr.Zero);
   return found;
  }
+ public static void Scroll(IntPtr w) {
+  Rect r;GetWindowRect(w,out r);SetCursorPos(r.Left+(r.Right-r.Left)*3/4,r.Top+(r.Bottom-r.Top)/2);
+  mouse_event(0x0800,0,0,unchecked((uint)-720),UIntPtr.Zero);
+ }
  public static void Click(IntPtr w,double x,double y) {
   Rect r; if(!GetWindowRect(w,out r)||r.Right-r.Left<900) throw new Exception("Unexpected Setup bounds");
   SetForegroundWindow(w); SetCursorPos(r.Left+(int)((r.Right-r.Left)*x),r.Top+(int)((r.Bottom-r.Top)*y));
@@ -63,6 +67,9 @@ try {
  [InstallerMouse]::Click($handle,0.89,0.92)
  Start-Sleep -Seconds 5
  Capture '3-install-options'
+ [InstallerMouse]::Scroll($handle)
+ Start-Sleep -Seconds 1
+ Capture '4-package-source'
  Write-Host "Captured actual finished installer screens for offline source review: expected=$Version"
 } finally {
  Capture 'final'
