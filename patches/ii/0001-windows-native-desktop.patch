@@ -21,7 +21,7 @@ index 07f5148..545d5be 100644
      readonly property bool animationsEnabled: !(Platform.isWindows
          && Config.options.windowsPort.gameMode.enable)
 diff --git a/modules/common/Config.qml b/modules/common/Config.qml
-index 6b03d45..c796b8c 100644
+index 6b03d45..a48af6c 100644
 --- a/modules/common/Config.qml
 +++ b/modules/common/Config.qml
 @@ -107,10 +107,11 @@ Singleton {
@@ -57,20 +57,21 @@ index 6b03d45..c796b8c 100644
                      property bool blurWidgets: false
                      property real blurRadius: 32
                      property bool shadow: true
-@@ -743,6 +756,7 @@ Singleton {
+@@ -743,6 +756,8 @@ Singleton {
                  property bool nativeTaskbar: false
                  property bool backgroundBehindIcons: true
                  property bool ownWallpaper: false
 +                property string wallpaperOwner: "auto"
++                property bool nativeDesktopGlass: false
                  property bool superDrag: true
                  property bool panelAnimations: true
                  property string panelAnimationStyle: "standard"
 diff --git a/modules/common/functions/WindowsPolicy.js b/modules/common/functions/WindowsPolicy.js
 new file mode 100644
-index 0000000..4607cde
+index 0000000..be4b016
 --- /dev/null
 +++ b/modules/common/functions/WindowsPolicy.js
-@@ -0,0 +1,15 @@
+@@ -0,0 +1,20 @@
 +.pragma library
 +
 +function wallpaperOwner(selected, legacyOwnWallpaper) {
@@ -85,6 +86,11 @@ index 0000000..4607cde
 +
 +function acceptsUpdateCache(cache, repository) {
 +    return cache !== null && typeof cache === "object" && cache.repository === repository;
++}
++
++function nativeDesktopGlass(state) {
++    return !!(state.windows && state.external && state.requested && state.available
++        && state.behindIcons && state.glass && !state.locked && !state.gameMode);
 +}
 diff --git a/modules/common/models/quickToggles/EasyEffectsToggle.qml b/modules/common/models/quickToggles/EasyEffectsToggle.qml
 index 4f76c09..d3cc9d1 100644
@@ -226,7 +232,7 @@ index 04e33a4..e16a7cf 100644
      selectionColor: Appearance.colors.colSecondaryContainer
  
 diff --git a/modules/common/widgets/WidgetCard.qml b/modules/common/widgets/WidgetCard.qml
-index dacf1ec..98a9e30 100644
+index dacf1ec..ec62b6e 100644
 --- a/modules/common/widgets/WidgetCard.qml
 +++ b/modules/common/widgets/WidgetCard.qml
 @@ -1,6 +1,7 @@
@@ -247,7 +253,7 @@ index dacf1ec..98a9e30 100644
 +    readonly property bool glassActive: glass
 +        && (Config.options.background.widgets.glass.enable ?? false)
 +        && widget !== null && widget.wallpaperItem !== null
-+        && (!Platform.isWindows || widget.wallpaperItem.status === Image.Ready)
++        && (!Platform.isWindows || (!DesktopBackground.external && widget.wallpaperItem.status === Image.Ready))
  
      radius: Appearance.rounding?.verylarge ?? 30
 -    color: Appearance.colors.colPrimaryContainer
@@ -1154,7 +1160,7 @@ index eb9af9d..a0ee027 100644
                          color: Appearance.colors.colLayer1
                          radius: Appearance.rounding.small
 diff --git a/modules/settings/BackgroundConfig.qml b/modules/settings/BackgroundConfig.qml
-index 6d86c1e..12e5214 100644
+index 6d86c1e..def6398 100644
 --- a/modules/settings/BackgroundConfig.qml
 +++ b/modules/settings/BackgroundConfig.qml
 @@ -585,6 +585,17 @@ ContentPage {
@@ -1175,7 +1181,7 @@ index 6d86c1e..12e5214 100644
          ConfigSwitch {
              buttonIcon: "lock_person"
              text: Translation.tr("Show widgets on the lock screen")
-@@ -630,6 +641,28 @@ ContentPage {
+@@ -630,6 +641,45 @@ ContentPage {
          icon: "desktop_windows"
          title: Translation.tr("Windows desktop")
  
@@ -1197,14 +1203,31 @@ index 6d86c1e..12e5214 100644
 +                { displayName: Translation.tr("External app (Wallpaper Engine, Lively)"), value: "external" }
 +            ]
 +            StyledToolTip {
-+                text: Translation.tr("External mode leaves the wallpaper app in control and keeps ii's widgets. Glass cards become translucent; live refraction of external wallpapers is not available in this preview.")
++                text: Translation.tr("External mode leaves the wallpaper app in control and keeps ii's widgets. Enable Native desktop glass for live Windows blur; otherwise cards are translucent. Liquid-lens refraction of external wallpapers is not available.")
++            }
++        }
++
++        ConfigSwitch {
++            buttonIcon: "blur_on"
++            text: Translation.tr("Native desktop glass (experimental)")
++            checked: Config.options.windowsPort.nativeDesktopGlass
++            enabled: Config.options.windowsPort.wallpaperOwner === "external"
++            onCheckedChanged: {
++                Config.options.windowsPort.nativeDesktopGlass = checked;
++                if (checked) {
++                    Config.options.windowsPort.backgroundBehindIcons = true;
++                    Config.options.background.widgets.glass.enable = true;
++                }
++            }
++            StyledToolTip {
++                text: Translation.tr("Use live Windows compositor blur behind desktop cards, including Wallpaper Engine. Requires Windows 11 and Transparency effects. Widgets use a bottom-layer, non-topmost window; the wallpaper stays in its original desktop host. Disabled during screen lock or game mode. This is native blur, not liquid-lens refraction. Turn off to restore embedded translucent cards.")
 +            }
 +        }
 +
          ConfigSwitch {
              buttonIcon: "wallpaper"
              text: Translation.tr("Put the background behind the desktop icons")
-@@ -645,6 +678,7 @@ ContentPage {
+@@ -645,6 +695,7 @@ ContentPage {
          ConfigSwitch {
              buttonIcon: "animation"
              text: Translation.tr("Draw ii's own wallpaper")
@@ -1253,10 +1276,10 @@ index 359f677..e24fe27 100644
                                  StyledText {
                                      Layout.alignment: Qt.AlignVCenter
 diff --git a/modules/settingsPc/pages/BackgroundConfig.qml b/modules/settingsPc/pages/BackgroundConfig.qml
-index 742930c..582811f 100644
+index 742930c..a1dc9f3 100644
 --- a/modules/settingsPc/pages/BackgroundConfig.qml
 +++ b/modules/settingsPc/pages/BackgroundConfig.qml
-@@ -541,6 +541,26 @@ ContentPage {
+@@ -541,6 +541,43 @@ ContentPage {
              title: Translation.tr("Windows desktop")
  
              GroupedList {
@@ -1276,14 +1299,31 @@ index 742930c..582811f 100644
 +                        { displayName: Translation.tr("External app (Wallpaper Engine, Lively)"), value: "external" }
 +                    ]
 +                    W.StyledToolTip {
-+                        text: Translation.tr("External mode leaves the wallpaper app in control and keeps ii's widgets. Glass cards become translucent; live refraction of external wallpapers is not available in this preview.")
++                        text: Translation.tr("External mode leaves the wallpaper app in control and keeps ii's widgets. Enable Native desktop glass for live Windows blur; otherwise cards are translucent. Liquid-lens refraction of external wallpapers is not available.")
++                    }
++                }
++
++                ConfigSwitch {
++                    buttonIcon: "blur_on"
++                    text: Translation.tr("Native desktop glass (experimental)")
++                    checked: Config.options.windowsPort.nativeDesktopGlass
++                    enabled: Config.options.windowsPort.wallpaperOwner === "external"
++                    onCheckedChanged: {
++                        Config.options.windowsPort.nativeDesktopGlass = checked;
++                        if (checked) {
++                            Config.options.windowsPort.backgroundBehindIcons = true;
++                            Config.options.background.widgets.glass.enable = true;
++                        }
++                    }
++                    W.StyledToolTip {
++                        text: Translation.tr("Use live Windows compositor blur behind desktop cards, including Wallpaper Engine. Requires Windows 11 and Transparency effects. Widgets use a bottom-layer, non-topmost window; the wallpaper stays in its original desktop host. Disabled during screen lock or game mode. This is native blur, not liquid-lens refraction. Turn off to restore embedded translucent cards.")
 +                    }
 +                }
 +
                  ConfigSwitch {
                      buttonIcon: "wallpaper"
                      text: Translation.tr("Put the background behind the desktop icons")
-@@ -556,6 +576,7 @@ ContentPage {
+@@ -556,6 +593,7 @@ ContentPage {
                  ConfigSwitch {
                      buttonIcon: "animation"
                      text: Translation.tr("Draw ii's own wallpaper")
@@ -1291,7 +1331,7 @@ index 742930c..582811f 100644
                      enabled: Config.options.windowsPort.backgroundBehindIcons
                      checked: Config.options.windowsPort.ownWallpaper
                      onCheckedChanged: {
-@@ -2108,6 +2129,17 @@ ContentPage {
+@@ -2108,6 +2146,17 @@ ContentPage {
                          Config.options.background.widgets.shadow = checked;
                      }
                  }
@@ -1511,12 +1551,13 @@ index 0b39f84..f380283 100644
  
 diff --git a/services/DesktopBackground.qml b/services/DesktopBackground.qml
 new file mode 100644
-index 0000000..30d4122
+index 0000000..1e33267
 --- /dev/null
 +++ b/services/DesktopBackground.qml
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,54 @@
 +pragma Singleton
 +import QtQuick
++import qs
 +import Quickshell
 +import qs.modules.common
 +import "../modules/common/functions/WindowsPolicy.js" as WindowsPolicy
@@ -1525,12 +1566,19 @@ index 0000000..30d4122
 +    id: root
 +
 +    function syncNativeOwnership() {
-+        if (!Platform.isWindows || !Config.ready) return;
-+        const backend = WindowsNative.wallpaper;
-+        if (backend && backend.externalControl !== undefined) backend.externalControl = root.external;
++        if (!Platform.isWindows) return;
++        if (Config.ready) {
++            const backend = WindowsNative.wallpaper;
++            if (backend && backend.externalControl !== undefined) backend.externalControl = root.external;
++        }
++        const desktop = WindowsNative.desktopLayer;
++        if (desktop && desktop.nativeGlassNamespaces !== undefined) {
++            desktop.nativeGlassNamespaces = Config.ready && root.external && root.nativeGlassEnabled ? ["quickshell:backgroundWidgets"] : [];
++        }
 +    }
 +
 +    onExternalChanged: syncNativeOwnership()
++    onNativeGlassEnabledChanged: syncNativeOwnership()
 +    Component.onCompleted: syncNativeOwnership()
 +    Connections {
 +        target: Config
@@ -1548,7 +1596,18 @@ index 0000000..30d4122
 +        || (Config.options.windowsPort.backgroundBehindIcons && owner !== "ii"))
 +    readonly property bool mayWriteSystemWallpaper: !external
 +    readonly property bool mayDrawVideo: !external
-+    readonly property string glassSource: external ? "unavailable" : "static-image"
++    readonly property bool nativeGlassAvailable: Platform.isWindows
++        && WindowsNative.desktopLayer?.nativeGlassAvailable === true
++    readonly property bool nativeGlassEnabled: Config.ready && WindowsPolicy.nativeDesktopGlass({
++        windows: Platform.isWindows, external: root.external,
++        requested: Config.options.windowsPort.nativeDesktopGlass,
++        available: root.nativeGlassAvailable,
++        behindIcons: Config.options.windowsPort.backgroundBehindIcons,
++        glass: Config.options.background.widgets.glass.enable,
++        locked: GlobalStates.screenLocked,
++        gameMode: Config.options.windowsPort.gameMode.enable
++    })
++    readonly property string glassSource: nativeGlassEnabled ? "native-backdrop" : external ? "unavailable" : "static-image"
 +}
 diff --git a/services/EasyEffects.qml b/services/EasyEffects.qml
 index 040c51c..990f996 100644

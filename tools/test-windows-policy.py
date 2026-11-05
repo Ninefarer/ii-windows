@@ -43,3 +43,4 @@ with tempfile.TemporaryDirectory() as temporary:
 subprocess.run(['node', str(ROOT / 'tools/test-wallpaper-ownership.cjs'), str(shell)], check=True)
 subprocess.run(['node', str(ROOT / 'tools/test-audio-readiness.cjs'), str(shell)], check=True)
 subprocess.run(['node', str(ROOT / 'tools/test-linux-service-guards.cjs'), str(shell)], check=True)
+subprocess.run(['node', str(ROOT / 'tools/test-desktop-glass.cjs'), str(shell)], check=True)

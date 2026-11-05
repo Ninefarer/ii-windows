@@ -1,3 +1,179 @@
+diff --git a/src/windows/blur.cpp b/src/windows/blur.cpp
+index 631b409..36500f9 100644
+--- a/src/windows/blur.cpp
++++ b/src/windows/blur.cpp
+@@ -1392,6 +1392,12 @@ void PanelBlur::updateActive() {
+ 		}
+ 
+ 		this->rule = manager->ruleFor(this->panel->ns());
++		if (this->panel->nativeDesktopGlass()) {
++			// Desktop cards are intentionally translucent. Collect their rounded
++			// Rectangle bounds, never the transparent full-monitor surface.
++			this->rule.blur = true;
++			this->rule.ignoreAlpha = 0.05;
++		}
+ 	} else {
+ 		this->rule = LayerRule();
+ 	}
+diff --git a/src/windows/desktop_host.cpp b/src/windows/desktop_host.cpp
+index 9d04eb4..a3cef28 100644
+--- a/src/windows/desktop_host.cpp
++++ b/src/windows/desktop_host.cpp
+@@ -13,6 +13,7 @@
+ 
+ #include "../core/logcat.hpp"
+ #include "appbar.hpp"
++#include "blur.hpp"
+ #include "util.hpp"
+ 
+ namespace qs::windows {
+@@ -172,6 +173,15 @@ HWND DesktopHost::iconsHost() {
+ 	return this->mIconsHost;
+ }
+ 
++void DesktopHost::setNativeGlassNamespaces(const QStringList& namespaces) {
++	auto normalized = namespaces;
++	normalized.removeAll(QString());
++	normalized.removeDuplicates();
++	if (normalized == this->mNativeGlassNamespaces) return;
++	this->mNativeGlassNamespaces = normalized;
++	emit this->nativeGlassNamespacesChanged();
++}
++
+ void DesktopHost::setAboveIcons(const QStringList& namespaces) {
+ 	if (namespaces == this->mAboveIcons) return;
+ 	this->mAboveIcons = namespaces;
+@@ -481,6 +491,10 @@ DesktopLayer::DesktopLayer(QObject* parent): QObject(parent) {
+ 	QObject::connect(host, &DesktopHost::enabledChanged, this, &DesktopLayer::enabledChanged);
+ 	QObject::connect(host, &DesktopHost::activeChanged, this, &DesktopLayer::activeChanged);
+ 	QObject::connect(host, &DesktopHost::aboveIconsChanged, this, &DesktopLayer::aboveIconsChanged);
++	QObject::connect(host, &DesktopHost::nativeGlassNamespacesChanged, this, &DesktopLayer::nativeGlassNamespacesChanged);
++	if (auto* blur = BlurManager::instance()) {
++		QObject::connect(blur, &BlurManager::stateChanged, this, &DesktopLayer::nativeGlassAvailableChanged);
++	}
+ 	QObject::connect(host, &DesktopHost::wallpaperChanged, this, &DesktopLayer::wallpaperChanged);
+ }
+ 
+@@ -488,6 +502,17 @@ bool DesktopLayer::enabled() const { return DesktopHost::instance()->enabled();
+ void DesktopLayer::setEnabled(bool enabled) { DesktopHost::instance()->setEnabled(enabled); }
+ bool DesktopLayer::active() const { return DesktopHost::instance()->active(); }
+ 
++bool DesktopLayer::nativeGlassAvailable() const {
++	auto* blur = BlurManager::instance();
++	return blur != nullptr && blur->enabled() && blur->available()
++	    && blur->backend() == BlurManager::Backend::HostBackdrop;
++}
++
++QStringList DesktopLayer::nativeGlassNamespaces() const { return DesktopHost::instance()->nativeGlassNamespaces(); }
++void DesktopLayer::setNativeGlassNamespaces(const QStringList& namespaces) {
++	DesktopHost::instance()->setNativeGlassNamespaces(namespaces);
++}
++
+ QStringList DesktopLayer::aboveIcons() const { return DesktopHost::instance()->aboveIcons(); }
+ 
+ void DesktopLayer::setAboveIcons(const QStringList& namespaces) {
+diff --git a/src/windows/desktop_host.hpp b/src/windows/desktop_host.hpp
+index f2d6f61..c1c12bb 100644
+--- a/src/windows/desktop_host.hpp
++++ b/src/windows/desktop_host.hpp
+@@ -28,6 +28,9 @@ public:
+ 	[[nodiscard]] HWND insertAfter() const { return this->mInsertAfter; }
+ 	[[nodiscard]] HWND iconsHost();
+ 
++	[[nodiscard]] QStringList nativeGlassNamespaces() const { return this->mNativeGlassNamespaces; }
++	void setNativeGlassNamespaces(const QStringList& namespaces);
++
+ 	[[nodiscard]] QStringList aboveIcons() const { return this->mAboveIcons; }
+ 	void setAboveIcons(const QStringList& namespaces);
+ 
+@@ -39,6 +42,7 @@ signals:
+ 	void parentChanged();
+ 	void parentMoved();
+ 	void aboveIconsChanged();
++	void nativeGlassNamespacesChanged();
+ 	void iconsRestacked();
+ 	void wallpaperChanged();
+ 
+@@ -71,6 +75,7 @@ private:
+ 	HWND mIconsView = nullptr;
+ 	HWND mIconsHost = nullptr;
+ 	QStringList mAboveIcons;
++	QStringList mNativeGlassNamespaces;
+ 	HWND listener = nullptr;
+ 	HKEY desktopKey = nullptr;
+ 	HANDLE desktopKeyEvent = nullptr;
+@@ -92,6 +97,8 @@ class DesktopLayer: public QObject {
+ 	Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged);
+ 	Q_PROPERTY(bool active READ active NOTIFY activeChanged);
+ 	Q_PROPERTY(QStringList aboveIcons READ aboveIcons WRITE setAboveIcons NOTIFY aboveIconsChanged);
++	Q_PROPERTY(QStringList nativeGlassNamespaces READ nativeGlassNamespaces WRITE setNativeGlassNamespaces NOTIFY nativeGlassNamespacesChanged);
++	Q_PROPERTY(bool nativeGlassAvailable READ nativeGlassAvailable NOTIFY nativeGlassAvailableChanged);
+ 	// clang-format on
+ 
+ public:
+@@ -102,6 +109,10 @@ public:
+ 
+ 	[[nodiscard]] bool active() const;
+ 
++	[[nodiscard]] bool nativeGlassAvailable() const;
++	[[nodiscard]] QStringList nativeGlassNamespaces() const;
++	void setNativeGlassNamespaces(const QStringList& namespaces);
++
+ 	[[nodiscard]] QStringList aboveIcons() const;
+ 	void setAboveIcons(const QStringList& namespaces);
+ 
+@@ -109,6 +120,8 @@ signals:
+ 	void enabledChanged();
+ 	void activeChanged();
+ 	void aboveIconsChanged();
++	void nativeGlassNamespacesChanged();
++	void nativeGlassAvailableChanged();
+ 	void wallpaperChanged();
+ };
+ 
+diff --git a/src/windows/panel_window.cpp b/src/windows/panel_window.cpp
+index 2716b34..94f9784 100644
+--- a/src/windows/panel_window.cpp
++++ b/src/windows/panel_window.cpp
+@@ -427,6 +427,10 @@ WinPanelWindow::WinPanelWindow(QObject* parent)
+ 	    &WinPanelWindow::updateLayer,
+ 	    queued
+ 	);
++	QObject::connect(host, &DesktopHost::nativeGlassNamespacesChanged, this, [this] {
++		this->updateLayer();
++		this->blur->attach();
++	}, queued);
+ 	QObject::connect(host, &DesktopHost::iconsRestacked, this, &WinPanelWindow::keepAboveIcons);
+ }
+ 
+@@ -972,8 +976,13 @@ bool WinPanelWindow::reservesSpace() const {
+ 	return this->bcExclusionEdge.value() != 0 && this->bcExclusiveZone.value() > 0;
+ }
+ 
++bool WinPanelWindow::nativeDesktopGlass() const {
++	return this->bLayer.value() <= PanelLayer::Bottom && !this->reservesSpace()
++	    && DesktopHost::instance()->nativeGlassNamespaces().contains(this->bNamespace.value());
++}
++
+ bool WinPanelWindow::wantsEmbedding() const {
+-	return DesktopHost::instance()->enabled() && this->bLayer.value() <= PanelLayer::Bottom
++	return !this->nativeDesktopGlass() && DesktopHost::instance()->enabled() && this->bLayer.value() <= PanelLayer::Bottom
+ 	    && this->bKeyboardFocus.value() == PanelKeyboardFocus::None && !this->reservesSpace();
+ }
+ 
+diff --git a/src/windows/panel_window.hpp b/src/windows/panel_window.hpp
+index 21a6830..1454205 100644
+--- a/src/windows/panel_window.hpp
++++ b/src/windows/panel_window.hpp
+@@ -146,6 +146,8 @@ public:
+ 
+ 	bool handleNativeMessage(MSG* msg, qintptr* result);
+ 
++	[[nodiscard]] bool nativeDesktopGlass() const;
++
+ 	[[nodiscard]] bool isEmbedded() const { return this->mEmbedParent != nullptr; }
+ 
+ signals:
 diff --git a/src/windows/system/wallpaper.cpp b/src/windows/system/wallpaper.cpp
 index 84e5a4c..08ef1e5 100644
 --- a/src/windows/system/wallpaper.cpp

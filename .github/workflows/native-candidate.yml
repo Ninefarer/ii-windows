@@ -47,6 +47,12 @@ jobs:
         python tools/test-windows-policy.py ii
 
         '
+    - name: Parse the native glass lifecycle harness
+      shell: powershell
+      run: |
+        $tokens = $null; $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'tools/smoke/Test-NativeGlass.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+        if ($errors.Count) { $errors | Format-List; throw 'Invalid native glass test script' }
     - name: Check out and patch the native backend
       run: 'read -r name url sha < <(grep ''^quickshell '' sources.lock)
 
@@ -292,6 +298,9 @@ jobs:
         exit $LASTEXITCODE
 
         '
+    - name: Test native glass topology, backdrop lifetime and focus flags
+      shell: powershell
+      run: '& tools\smoke\Test-NativeGlass.ps1 -InstallPath "$env:LOCALAPPDATA\ii-windows" -ShellPath "$env:LOCALAPPDATA\quickshell\ii"'
     - uses: actions/upload-artifact@v4
       if: always()
       with:

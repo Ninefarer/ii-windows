@@ -8,7 +8,7 @@ This branch is a Windows-first development preview, based on the pinned Quickshe
 - Shared text labels and editable fields use a selectable rendering policy: Automatic selects distance fields on Windows, while Linux keeps native raster rendering. Both Settings layouts offer distance, native and curve choices. Fonts, icon glyphs, display scaling and font sizes are not forced.
 - A native C++ wallpaper-write policy rejects writes while an external app owns the desktop. Changing ownership advances an atomic generation, clears pending work and prevents old queued writes from applying after re-entry. A write already inside an OS call cannot be cancelled. The QML owner setting is connected to this backend property.
 - A single `DesktopBackground` service resolves wallpaper ownership and gates wallpaper writes, video playback and glass source availability. `auto` preserves the old draw-own-wallpaper preference. Explicit owners are Windows, ii and an external wallpaper app.
-- External mode stops ii's wallpaper setter and per-desktop synchronization paths from competing with another app. It also stops ii's video layer and preview image. Desktop cards become translucent rather than refracting a stale Windows image. **It does not add live Wallpaper Engine refraction.**
+- External mode stops ii's wallpaper setter and per-desktop synchronization paths from competing with another app. It also stops ii's video layer and preview image. Desktop cards become translucent rather than refracting a stale Windows image. **Liquid-lens refraction is not implemented.** Native desktop glass is a separate, opt-in compositor-blur mode described below.
 - Linux-only EasyEffects refresh and configuration entry points stay inert on Windows, including refresh calls from toggle initialization.
 - Audio controls now wait for an available endpoint, handle speaker/microphone disappearance and route volume shortcuts and corner controls through guarded service methods. This fixes the observed end4 sidebar null-audio exception after restart.
 - The hidden static glass source decodes at the current Qt window DPR, instead of limiting its image to logical pixel dimensions.
@@ -42,10 +42,10 @@ The candidate workflow is `.github/workflows/native-candidate.yml`. Its jobs dis
 
 The QML source patch is `patches/ii/0001-windows-native-desktop.patch`, and `patches/quickshell/0001-wallpaper-ownership.patch` adds the native write gate. They are generated against the exact source commits in `sources.lock`. Do not apply the old theme-level Install-Glass or Install-TextRendering scripts on top of a build from this branch; the corresponding features are integrated here.
 
-To install a built artifact before there is a GitHub release, extract the artifact containing `ii-windows-setup.exe` and `ii-windows-26.1.1.1-native.6.zip`, then run:
+To install a built artifact before there is a GitHub release, extract the artifact containing `ii-windows-setup.exe` and `ii-windows-26.1.1.1-native.7.zip`, then run:
 
 ```powershell
-.\ii-windows-setup.exe --package .\ii-windows-26.1.1.1-native.6.zip --no-self-update
+.\ii-windows-setup.exe --package .\ii-windows-26.1.1.1-native.7.zip --no-self-update
 ```
 
 This uses the existing installer's local-package path. Review its changes and backup/repair controls before installation. The preview shares the upstream installation paths and settings; it is not a side-by-side installation. No install is performed automatically from this development session.
@@ -55,3 +55,11 @@ This uses the existing installer's local-package path. Review its changes and ba
 Before a public release: native compilation, installer and runtime checks must pass; source/license provenance must be packaged; restore/update behavior and existing settings must be checked; and a real Windows desktop must exercise end4 bar/dock/sidebar, focus, multi-monitor/DPI, Explorer restart, startup, and wallpaper ownership. Live external refraction remains an explicit blocker for claiming Wallpaper Engine glass support. Audio, HDR, battery and game-mode costs require measurements rather than assumptions.
 
 A later theme revision should consume these stable port settings and capability states, instead of replacing shell files. Do not promise that the port can sample every other app's visual surface: the provider must report unavailable/unsupported sources honestly.
+
+## Experimental native desktop glass (native.7)
+
+The user confirmed that the standalone top-level backdrop probes followed live Wallpaper Engine output on Windows build 26300, and Win+D did not disturb them. Child-window blur attributes were rejected. The integrated preview therefore offers **Native desktop glass (experimental)** under Settings > Background > Windows desktop, after selecting **External app** as wallpaper owner.
+
+Only `quickshell:backgroundWidgets` leaves Explorer embedding. It uses the existing bottom-layer, tool-window, no-focus policy and native backdrop placement, clipped to rounded translucent card rectangles. The wallpaper surface stays embedded. No wallpaper renderer is duplicated and no screen capture, injection or foreign-window reparenting is involved. Windows transparency/energy/high-contrast capability, lock, game mode, wallpaper ownership and the widget glass setting gate the feature. Turning it off restores embedded translucent widgets. This provides compositor blur, not a texture for the liquid-lens shader.
+
+Tests exercise policy gates and the actual QML-to-native namespace bridge, plus a Windows lifecycle harness that switches embedded -> native -> embedded -> native, verifies window styles, and checks backdrop creation/cleanup when Windows blur is available. This is not proof of real-device rendering. After installation, verify live Wallpaper Engine motion, foreground-app occlusion, Win+D, card input, text-entry focus, virtual desktops, Explorer restart and DPI/monitor changes before considering broader release readiness.
