@@ -123,12 +123,12 @@ jobs:
           $version = $exe.Name -replace '^ii-windows-','' -replace '-x64-offline-setup.exe$',''
           $key = 'HKCU:/Software/Policies/Microsoft/Edge/WebView2/AdditionalBrowserArguments'
           New-Item $key -Force | Out-Null
-          New-ItemProperty $key -Name 'ii-windows-setup.exe' -Value '--remote-debugging-port=9222' -PropertyType String -Force | Out-Null
+          New-ItemProperty $key -Name '*' -Value '--remote-debugging-port=9222' -PropertyType String -Force | Out-Null
           try {
             node tools/smoke/test-installer-source.cjs $exe.FullName $version installer-test/source-selection.json
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } finally {
-            Remove-ItemProperty $key -Name 'ii-windows-setup.exe' -ErrorAction SilentlyContinue
+            Remove-ItemProperty $key -Name '*' -ErrorAction SilentlyContinue
           }
       - uses: actions/upload-artifact@v4
         if: always()
