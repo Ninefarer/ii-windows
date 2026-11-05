@@ -54,8 +54,12 @@ try {
                     }
                     if ($state.phase -eq 'passed') {
                         if ($state.owner -ne 'external' -or -not $state.nativeGlass -or -not $state.glass -or -not $state.behindIcons) { throw 'Real clicks did not apply native-glass settings' }
-                        if (-not $passed.ContainsKey([string]$state.width)) { Write-Host "PASS Settings real clicks: width=$($state.width) scale=$scale dropdown=external nativeGlass=True" }
-                        $passed[[string]$state.width] = $true
+                        if ([int]$state.width -ne [int]$testWidth) {
+                            $available = [SettingsMouse]::GetSystemMetrics(0) / $state.dpr
+                            if ([int]$testWidth -le $available -or [int]$state.width -gt [int]$testWidth -or [Math]::Abs($state.width - $available) -gt 16) { throw 'Unexpected test window size' }
+                        }
+                        if (-not $passed.ContainsKey($testWidth)) { Write-Host "PASS Settings real clicks: requestedWidth=$testWidth actualWidth=$($state.width) scale=$scale dropdown=external nativeGlass=True" }
+                        $passed[$testWidth] = $true
                     }
                 }
             }
