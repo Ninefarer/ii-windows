@@ -1,0 +1,1880 @@
+diff --git a/modules/common/Appearance.qml b/modules/common/Appearance.qml
+index 07f5148..545d5be 100644
+--- a/modules/common/Appearance.qml
++++ b/modules/common/Appearance.qml
+@@ -1,6 +1,7 @@
+ import QtQuick
+ import Quickshell
+ import qs.modules.common.functions
++import "functions/WindowsPolicy.js" as WindowsPolicy
+ pragma Singleton
+ pragma ComponentBehavior: Bound
+ 
+@@ -13,6 +14,9 @@ Singleton {
+     property QtObject rounding
+     property QtObject font
+     property QtObject sizes
++    readonly property string textRenderer: WindowsPolicy.textRenderer(Config.options.appearance.textRendering, Platform.isWindows)
++    readonly property int textRenderType: textRenderer === "distance" ? Text.QtRendering
++        : textRenderer === "curves" ? Text.CurveRendering : Text.NativeRendering
+     property string syntaxHighlightingTheme
+     readonly property bool animationsEnabled: !(Platform.isWindows
+         && Config.options.windowsPort.gameMode.enable)
+diff --git a/modules/common/Config.qml b/modules/common/Config.qml
+index 6b03d45..a48af6c 100644
+--- a/modules/common/Config.qml
++++ b/modules/common/Config.qml
+@@ -107,10 +107,11 @@ Singleton {
+             }
+ 
+             property JsonObject appearance: JsonObject {
+-                property string visualStyle: "ii"
++                property string visualStyle: "end4pc"
+                 property string visualStyleApplied: "ii"
+                 property int visualStylePresetVersion: 0
+-                property string settingsLayout: "ii"
++                property string settingsLayout: "end4pc"
++                property string textRendering: "auto"
+                 property string uiBackground: "themed"
+                 property bool extraBackgroundTint: true
+                 property int fakeScreenRounding: 2 // 0: None | 1: Always | 2: When not fullscreen
+@@ -233,6 +234,18 @@ Singleton {
+                 property string splitSide: "left"
+                 property bool showSnapLines: true
+                 property JsonObject widgets: JsonObject {
++                    // Honkai Windows glass overlay: sampled inside the widget window.
++                    property JsonObject glass: JsonObject {
++                        property bool enable: false
++                        property string tint: "transparent"
++                        property real tintStrength: 0.3
++                        property real rimWidth: 16
++                        property real pull: 26
++                        property real split: 0.06
++                        property real haze: 3
++                        property real vividness: 1.3
++                        property real sheen: 0.55
++                    }
+                     property bool blurWidgets: false
+                     property real blurRadius: 32
+                     property bool shadow: true
+@@ -743,6 +756,8 @@ Singleton {
+                 property bool nativeTaskbar: false
+                 property bool backgroundBehindIcons: true
+                 property bool ownWallpaper: false
++                property string wallpaperOwner: "auto"
++                property bool nativeDesktopGlass: false
+                 property bool superDrag: true
+                 property bool panelAnimations: true
+                 property string panelAnimationStyle: "standard"
+diff --git a/modules/common/functions/WindowsPolicy.js b/modules/common/functions/WindowsPolicy.js
+new file mode 100644
+index 0000000..be4b016
+--- /dev/null
++++ b/modules/common/functions/WindowsPolicy.js
+@@ -0,0 +1,20 @@
++.pragma library
++
++function wallpaperOwner(selected, legacyOwnWallpaper) {
++    if (selected === "system" || selected === "ii" || selected === "external") return selected;
++    return legacyOwnWallpaper ? "ii" : "system";
++}
++
++function textRenderer(selected, windows) {
++    if (selected === "native" || selected === "distance" || selected === "curves") return selected;
++    return windows ? "distance" : "native";
++}
++
++function acceptsUpdateCache(cache, repository) {
++    return cache !== null && typeof cache === "object" && cache.repository === repository;
++}
++
++function nativeDesktopGlass(state) {
++    return !!(state.windows && state.external && state.requested && state.available
++        && state.behindIcons && state.glass && !state.locked && !state.gameMode);
++}
+diff --git a/modules/common/models/quickToggles/EasyEffectsToggle.qml b/modules/common/models/quickToggles/EasyEffectsToggle.qml
+index 4f76c09..d3cc9d1 100644
+--- a/modules/common/models/quickToggles/EasyEffectsToggle.qml
++++ b/modules/common/models/quickToggles/EasyEffectsToggle.qml
+@@ -22,7 +22,7 @@ QuickToggleModel {
+     }
+ 
+     altAction: () => {
+-        Quickshell.execDetached(["bash", "-c", "flatpak run com.github.wwmm.easyeffects || easyeffects"])
++        EasyEffects.openConfiguration()
+         GlobalStates.sidebarRightOpen = false
+     }
+ 
+diff --git a/modules/common/widgets/FrostedGlass.qml b/modules/common/widgets/FrostedGlass.qml
+new file mode 100644
+index 0000000..17561fe
+--- /dev/null
++++ b/modules/common/widgets/FrostedGlass.qml
+@@ -0,0 +1,68 @@
++import QtQuick
++import qs.modules.common
++
++Item {
++    id: root
++    required property Item blurSource
++    property real cardRadius: 30
++    property real topLeftRadius: cardRadius
++    property real topRightRadius: cardRadius
++    property real bottomRightRadius: cardRadius
++    property real bottomLeftRadius: cardRadius
++    property color tint: "white"
++    property real tintOpacity: 0
++    readonly property string tintChoice: Config.options.background.widgets.glass.tint ?? "transparent"
++    readonly property bool tintOverride: tintChoice !== "transparent"
++    readonly property color washColor: tintOverride ? Appearance.getColorFromName(tintChoice) : tint
++    readonly property real washOpacity: tintOverride ? Config.options.background.widgets.glass.tintStrength : tintOpacity
++    readonly property real rimWidth: Config.options.background.widgets.glass.rimWidth
++    readonly property real pull: Config.options.background.widgets.glass.pull
++    readonly property real split: Config.options.background.widgets.glass.split
++    readonly property real haze: Config.options.background.widgets.glass.haze
++    readonly property real vividness: Config.options.background.widgets.glass.vividness
++    readonly property real sheen: Config.options.background.widgets.glass.sheen
++    property real flareLeft: 0
++    property real flareRight: 0
++    property real hangLeft: 0
++    property real hangRight: 0
++    property int edge: 0
++    property real trackX: 0
++    property real trackY: 0
++
++    ShaderEffectSource {
++        id: capture
++        sourceItem: root.blurSource
++        sourceRect: {
++            var _fx = root.trackX
++            var _fy = root.trackY
++            if (!root.blurSource) return Qt.rect(0, 0, 0, 0)
++            var pt = root.mapToItem(root.blurSource, 0, 0)
++            return Qt.rect(pt.x, pt.y, root.width, root.height)
++        }
++        mipmap: true
++        hideSource: false
++        live: true
++        visible: false
++    }
++
++    ShaderEffect {
++        anchors.fill: parent
++        visible: root.blurSource !== null && root.width > 0 && root.height > 0
++
++        property var backdrop: capture
++        property vector2d size: Qt.vector2d(width, height)
++        property vector4d radii: Qt.vector4d(root.topLeftRadius, root.topRightRadius, root.bottomRightRadius, root.bottomLeftRadius)
++        property real rimWidth: root.rimWidth
++        property real pull: root.pull
++        property real split: root.split
++        property real haze: root.haze
++        property real vividness: root.vividness
++        property real sheen: root.sheen
++        property vector2d flares: Qt.vector2d(root.flareLeft, root.flareRight)
++        property vector2d hangs: Qt.vector2d(root.hangLeft, root.hangRight)
++        property real edge: root.edge
++        property color wash: Qt.rgba(root.washColor.r, root.washColor.g, root.washColor.b, root.washOpacity)
++
++        fragmentShader: Qt.resolvedUrl("shaders/liquidLens.frag.qsb")
++    }
++}
+diff --git a/modules/common/widgets/StyledComboBox.qml b/modules/common/widgets/StyledComboBox.qml
+index a9d2263..c198797 100644
+--- a/modules/common/widgets/StyledComboBox.qml
++++ b/modules/common/widgets/StyledComboBox.qml
+@@ -92,6 +92,7 @@ ComboBox {
+ 
+         required property var model
+         required property int index
++        text: root.textAt(index)
+         property color color: {
+             if (root.currentIndex === itemDelegate.index) {
+                 if (itemDelegate.down) return Appearance.colors.colSecondaryContainerActive;
+@@ -150,7 +151,7 @@ ComboBox {
+                 Layout.fillWidth: true
+                 Layout.preferredHeight: Appearance.font.pixelSize.larger
+                 color: itemDelegate.colText
+-                text: itemDelegate.model[root.textRole]
++                text: itemDelegate.text
+                 elide: Text.ElideRight
+                 verticalAlignment: Text.AlignVCenter
+             }
+@@ -158,6 +159,7 @@ ComboBox {
+     }
+ 
+     popup: Popup {
++        popupType: Platform.isWindows ? Popup.Window : Popup.Item
+         y: root.height + 4
+         width: root.width
+         height: Math.min(listView.contentHeight + topPadding + bottomPadding, 300)
+diff --git a/modules/common/widgets/StyledText.qml b/modules/common/widgets/StyledText.qml
+index d05d254..f39ba3d 100644
+--- a/modules/common/widgets/StyledText.qml
++++ b/modules/common/widgets/StyledText.qml
+@@ -7,7 +7,7 @@ Text {
+     property real animationDistanceX: 0
+     property real animationDistanceY: 6
+ 
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     verticalAlignment: Text.AlignVCenter
+     property bool shouldUseNumberFont: /^\d+$/.test(root.text)
+     property var defaultFont: shouldUseNumberFont ? Appearance.font.family.numbers : Appearance.font.family.main
+diff --git a/modules/common/widgets/StyledTextArea.qml b/modules/common/widgets/StyledTextArea.qml
+index afb8dd2..729457a 100644
+--- a/modules/common/widgets/StyledTextArea.qml
++++ b/modules/common/widgets/StyledTextArea.qml
+@@ -7,7 +7,7 @@ import QtQuick.Controls
+  */
+ TextArea {
+     id: root
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     ContextMenu.menu: StyledTextEditMenu { editor: root }
+     selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
+     selectionColor: Appearance.colors.colSecondaryContainer
+diff --git a/modules/common/widgets/StyledTextInput.qml b/modules/common/widgets/StyledTextInput.qml
+index 7b31816..e0b7237 100644
+--- a/modules/common/widgets/StyledTextInput.qml
++++ b/modules/common/widgets/StyledTextInput.qml
+@@ -7,7 +7,7 @@ import QtQuick.Controls
+  */
+ TextInput {
+     color: Appearance.colors.colOnLayer1
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
+     selectionColor: Appearance.colors.colSecondaryContainer
+     font {
+diff --git a/modules/common/widgets/ToolbarTextField.qml b/modules/common/widgets/ToolbarTextField.qml
+index 04e33a4..e16a7cf 100644
+--- a/modules/common/widgets/ToolbarTextField.qml
++++ b/modules/common/widgets/ToolbarTextField.qml
+@@ -22,7 +22,7 @@ TextField {
+         hintingPreference: Font.PreferFullHinting
+         variableAxes: Appearance.font.variableAxes.main
+     }
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     selectedTextColor: Appearance.colors.colOnSecondaryContainer
+     selectionColor: Appearance.colors.colSecondaryContainer
+ 
+diff --git a/modules/common/widgets/WidgetCard.qml b/modules/common/widgets/WidgetCard.qml
+index dacf1ec..ec62b6e 100644
+--- a/modules/common/widgets/WidgetCard.qml
++++ b/modules/common/widgets/WidgetCard.qml
+@@ -1,6 +1,7 @@
+ import QtQuick
+ import qs.modules.common
+ import qs
++import qs.services
+ 
+ Rectangle {
+     id: root
+@@ -9,21 +10,41 @@ Rectangle {
+     property bool shadowed: Config.options.background.widgets.shadow
+     property color tint: Appearance.colors.colLayer1
+     property real tintOpacity: 0.55
++    property bool glass: true
++    property color fallbackColor: Appearance.colors.colPrimaryContainer
++    readonly property bool translucentFallback: root.glass && Config.options.background.widgets.glass.enable && DesktopBackground.external
++    readonly property bool glassActive: glass
++        && (Config.options.background.widgets.glass.enable ?? false)
++        && widget !== null && widget.wallpaperItem !== null
++        && (!Platform.isWindows || (!DesktopBackground.external && widget.wallpaperItem.status === Image.Ready))
+ 
+     radius: Appearance.rounding?.verylarge ?? 30
+-    color: Appearance.colors.colPrimaryContainer
++    color: glassActive ? "transparent" : translucentFallback ? Qt.alpha(fallbackColor, 0.28) : fallbackColor
+ 
++    // Preserve the backend's shadow policy: shadows are separate from refraction.
+     StyledRectangularShadow {
+         target: root
+         z: -2
+         visible: !Platform.isWindows && root.shadowed
+     }
+ 
++    Loader {
++        anchors.fill: parent
++        active: root.glassActive
++        sourceComponent: FrostedGlass {
++            blurSource: root.widget.wallpaperItem
++            cardRadius: root.radius
++            tint: Appearance.colors.colPrimaryContainer
++            trackX: root.widget.x + root.x
++            trackY: root.widget.y + root.y
++        }
++    }
++
+     Loader {
+         anchors.fill: parent
+         anchors.margins: root.blurred ? -1 : 0
+-        active: !Platform.isWindows && root.blurred && root.widget !== null && root.widget.wallpaperItem !== null
+-        visible: active
++        active: !root.glassActive && !Platform.isWindows && root.blurred
++            && root.widget !== null && root.widget.wallpaperItem !== null
+         sourceComponent: FastBlurred {
+             blurSource: root.widget.wallpaperItem
+             cardRadius: root.radius + 1
+diff --git a/modules/common/widgets/WidgetsSubmenu.qml b/modules/common/widgets/WidgetsSubmenu.qml
+index 6e52609..41e0a10 100644
+--- a/modules/common/widgets/WidgetsSubmenu.qml
++++ b/modules/common/widgets/WidgetsSubmenu.qml
+@@ -40,7 +40,16 @@ Item {
+         }
+         ConfigSwitch {
+             Layout.fillWidth: true
++            visible: Platform.isWindows
+             buttonIcon: "blur_on"
++            text: Translation.tr("Glass widget backgrounds")
++            checked: Config.options.background.widgets.glass.enable
++            onCheckedChanged: Config.options.background.widgets.glass.enable = checked
++        }
++        ConfigSwitch {
++            Layout.fillWidth: true
++            buttonIcon: "blur_on"
++            visible: !Platform.isWindows
+             text: Translation.tr("Blur widgets")
+             checked: Config.options.background.widgets.blurWidgets 
+             onCheckedChanged: Config.options.background.widgets.blurWidgets = checked
+@@ -49,7 +58,7 @@ Item {
+         ConfigSlider {
+             Layout.fillWidth: true
+             showLabel: false
+-            visible: Config.options.background.widgets.blurWidgets
++            visible: !Platform.isWindows && Config.options.background.widgets.blurWidgets
+             value: Config.options.background.widgets.blurRadius ?? 32
+             usePercentTooltip: false
+             buttonIcon: "aspect_ratio"
+diff --git a/modules/common/widgets/shaders/liquidLens.frag b/modules/common/widgets/shaders/liquidLens.frag
+new file mode 100644
+index 0000000..4a12c34
+--- /dev/null
++++ b/modules/common/widgets/shaders/liquidLens.frag
+@@ -0,0 +1,159 @@
++#version 440
++
++layout(location = 0) in vec2 qt_TexCoord0;
++layout(location = 0) out vec4 fragColor;
++
++layout(std140, binding = 0) uniform buf {
++    mat4 qt_Matrix;
++    vec4 radii;
++    vec4 wash;
++    float qt_Opacity;
++    vec2 size;
++    float rimWidth;
++    float pull;
++    float split;
++    float haze;
++    float vividness;
++    float sheen;
++    vec2 flares;
++    vec2 hangs;
++    float edge;
++};
++
++layout(binding = 1) uniform sampler2D backdrop;
++
++float roundedDist(vec2 p, vec2 half_, vec4 radii) {
++    float r = p.x > 0.0 ? (p.y > 0.0 ? radii.z : radii.y) : (p.y > 0.0 ? radii.w : radii.x);
++    r = min(r, min(half_.x, half_.y));
++    vec2 q = abs(p) - half_ + r;
++    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
++}
++
++float boxDist(vec2 p, vec2 half_) {
++    vec2 q = abs(p) - half_;
++    return min(max(q.x, q.y), 0.0) + length(max(q, vec2(0.0)));
++}
++
++float filletDist(vec2 p, float s, vec2 center, vec2 boxCenter, vec2 boxHalf) {
++    return max(boxDist(p - boxCenter, boxHalf), -(length(p - center) - s));
++}
++
++float shapeDist(vec2 p) {
++    vec2 q = p + size * 0.5;
++    float hang = max(hangs.x, hangs.y);
++    bool vert = edge > 1.5;
++    float along = vert ? size.y : size.x;
++    float depth = (vert ? size.x : size.y) - hang;
++
++    float u = vert ? q.y : q.x;
++    float v = edge < 0.5 ? q.y : edge < 1.5 ? size.y - q.y : edge < 2.5 ? q.x : size.x - q.x;
++
++    vec2 lo = edge < 0.5 ? vec2(flares.x, 0.0)
++        : edge < 1.5 ? vec2(flares.x, size.y - depth)
++        : edge < 2.5 ? vec2(0.0, flares.x)
++        : vec2(size.x - depth, flares.x);
++    vec2 hi = edge < 0.5 ? vec2(along - flares.y, depth)
++        : edge < 1.5 ? vec2(along - flares.y, size.y)
++        : edge < 2.5 ? vec2(depth, along - flares.y)
++        : vec2(size.x, along - flares.y);
++    float d = roundedDist(q - (lo + hi) * 0.5, (hi - lo) * 0.5, radii);
++
++    if (flares.x > 0.0) d = min(d, filletDist(vec2(u, v), flares.x, vec2(0.0, flares.x), vec2(flares.x, flares.x * 0.5), vec2(flares.x, flares.x * 0.5)));
++    if (flares.y > 0.0) d = min(d, filletDist(vec2(along - u, v), flares.y, vec2(0.0, flares.y), vec2(flares.y, flares.y * 0.5), vec2(flares.y, flares.y * 0.5)));
++    if (hangs.x > 0.0) d = min(d, filletDist(vec2(u, v - depth), hangs.x, vec2(hangs.x), vec2(hangs.x * 0.5, 0.0), vec2(hangs.x * 0.5, hangs.x)));
++    if (hangs.y > 0.0) d = min(d, filletDist(vec2(along - u, v - depth), hangs.y, vec2(hangs.y), vec2(hangs.y * 0.5, 0.0), vec2(hangs.y * 0.5, hangs.y)));
++    return d;
++}
++
++const float GLASS_IOR = 1.5;
++const vec2 LIGHT = vec2(-0.6, -0.8);
++
++vec3 backdropAt(vec2 px, float lod) {
++    vec2 uv = clamp((px + size * 0.5) / size, vec2(0.002), vec2(0.998));
++    return textureLod(backdrop, uv, lod).rgb;
++}
++
++vec3 diffuseAt(vec2 px, float lod, float reach) {
++    vec3 acc = backdropAt(px, lod) * 2.0;
++    for (int i = 0; i < 6; ++i) {
++        float a = 1.0471976 * float(i) + 0.3;
++        acc += backdropAt(px + vec2(cos(a), sin(a)) * reach, lod);
++    }
++    return acc / 8.0;
++}
++
++float domeHeight(float u) {
++    float v = 1.0 - u;
++    return sqrt(max(1.0 - v * v, 0.0));
++}
++
++float domeSlope(float u) {
++    float v = 1.0 - u;
++    return min(v / max(sqrt(max(1.0 - v * v, 0.0)), 0.12), 5.0);
++}
++
++vec2 bendRay(vec2 outward, float slope, float ior, float travel) {
++    vec3 normal = normalize(vec3(outward * slope, 1.0));
++    vec3 ray = refract(vec3(0.0, 0.0, -1.0), normal, 1.0 / ior);
++    return ray.xy / max(-ray.z, 0.25) * travel;
++}
++
++void main() {
++    vec2 p = qt_TexCoord0 * size - size * 0.5;
++    float d = shapeDist(p);
++    float cover = clamp(0.5 - d, 0.0, 1.0);
++    if (cover <= 0.0) {
++        fragColor = vec4(0.0);
++        return;
++    }
++
++    float depth = max(-d, 0.0);
++    vec2 e = vec2(0.8, 0.0);
++    vec2 outward = vec2(
++        shapeDist(p + e.xy) - shapeDist(p - e.xy),
++        shapeDist(p + e.yx) - shapeDist(p - e.yx));
++    outward = length(outward) > 1e-4 ? normalize(outward) : vec2(0.0, -1.0);
++
++    float bezel = max(rimWidth, 1.0);
++    float u = clamp(depth / bezel, 0.0, 1.0);
++    float slope = domeSlope(u);
++    float fall = (1.0 - u) * (1.0 - u);
++
++    float spreadK = split * (0.4 + 1.4 * fall);
++    vec2 shiftG = bendRay(outward, slope, GLASS_IOR, pull);
++    vec2 shiftR = bendRay(outward, slope, GLASS_IOR - spreadK, pull);
++    vec2 shiftB = bendRay(outward, slope, GLASS_IOR + spreadK, pull);
++
++    float lod = log2(max(haze, 1.0));
++    float reach = haze * 0.6;
++    vec3 col;
++    col.r = diffuseAt(p + shiftR, lod, reach).r;
++    col.g = diffuseAt(p + shiftG, lod, reach).g;
++    col.b = diffuseAt(p + shiftB, lod, reach).b;
++
++    float lum = dot(col, vec3(0.299, 0.587, 0.114));
++    col = mix(vec3(lum), col, vividness);
++
++    vec2 L = normalize(LIGHT);
++    float facing = dot(outward, L);
++    float lit = pow(max(facing, 0.0), 1.6);
++    float away = pow(max(-facing, 0.0), 2.2);
++
++    float hair = exp(-depth / 1.0);
++    float wide = exp(-depth / (bezel * 0.5));
++    float rimLight = (hair * (0.2 + 0.75 * lit + 0.25 * away) + wide * 0.14 * lit) * sheen;
++
++    float rimEnv = pow(1.0 - clamp(u, 0.0, 1.0), 2.0);
++    vec3 env = backdropAt(p + outward * bezel * 1.2, min(lod + 2.0, 6.0));
++    col = mix(col, env * 1.1 + 0.03, clamp(rimEnv * 0.35 * (0.4 + 0.6 * lit), 0.0, 0.5));
++
++    col *= 1.0 - 0.14 * wide * away;
++
++    float top = 1.0 - smoothstep(0.0, size.y * 0.55, p.y + size.y * 0.5);
++    col += vec3(0.03 * top * sheen);
++
++    col = mix(col, wash.rgb, wash.a);
++    col += vec3(rimLight);
++
++    fragColor = vec4(clamp(col, 0.0, 1.0) * cover, cover) * qt_Opacity;
++}
+diff --git a/modules/common/widgets/shaders/liquidLens.frag.qsb b/modules/common/widgets/shaders/liquidLens.frag.qsb
+new file mode 100644
+index 0000000000000000000000000000000000000000..f5b1ce8973cd045365bb46269e54cefb976d1b3c
+GIT binary patch
+literal 12861
+zcmaiabx<5#^koPELa@LjxD%WK0$~U)f#B{Q0t9#03Blb7?k<D7ySwXP!{CDkhh@M0
+z=T}=>wN+j9PS?G!-#vZ$cHMXDy+Znw;Ffl*hn}V@J_VMbeBaIZ=DmN6-6&nlNLowH
+z&L=ce%4o5-VuW-poJ+oI>0_f-)g-~cR|oT7J1{Z~(q`#83{i2v&It~6%lzHoM#*&Q
+z+*aaIp+DhSBZ1co<qnHWhm=5Gu9Jl|L`S(HVJdOpXL)bgtEDbYbJd8ls@_2ozkc1^
+zyeDQ7z3;MTELWe`^C@UH&^}lheNYWZtLiRZ-By*j>QP@?)U?4YItZ)^siw54B_g_d
+zWTL7In0ck`7HpAM5>Jqj9#};rHHts2bM_ZKQe02ER<eFH(dxD)q)IzPJ=_M5pGDSA
+zhr=j)s)EUhX-v&1n3N|{05Yeq^v6=w>T}8(HgLm~d7w&vTk^{G@ARr%%6$*lb?M?&
+z(X(PDG2K^@<jIQO(8#yJ*nx*f>X7U@N;l=C4NyN*zHNe$WhP!l(R1Z6<JIV%dXBpq
+zlDGm6AiYRAM}kP%<%`kAI7sw0cUM)DLOw;9{s+3|km-f|H%o0J-IyB`@0X=v3{KbR
+zB^Fw=+)k45vCCx|?s-BaGYHlwr$w-p<+<BrM>5Bq2}!XIGa{>RO!ebU+w-433~lB)
+z$h;~sYAG>uz2#M6zuN%U&E;<Bdxvezk7>-n(?OTLZIPfmpEh56K4GN_dJK@mFi8{a
+z3^nqdRH|%8@-IB=`YbImKG{jD95Q;d?cjN!83}H=!6b-ITWzu*V68X_qFR>vQ_nah
+zk6Vi_#-}$4qFG-01Bx*tKwsV!YZ(pM{<{7B>b~a#fE7VE%%?TTEv|K*4R*nWF^k_K
+zGsPz6LS44dp!CJI@1uh6tSWW}RJ>S%K;t1@Zg;Q1DqB%BPj9xY5BAm;&peGn*XTZ^
+z;xHRD%<n0>;?1os#w>~LUmMe*FUgTUeKpePLersBSt<az6lywnR~Aa;%2Dfis_3yq
+zamN~m#rsXTNV^dCq4^XjyEilVWoW6ctBc#zN2e-y_rXv;=&(}A{o`i7&wjj+B=B-k
+z<S_WsN`K61aVb2`9&!K2i13n#?dJUjNs;#?XT&f!9+p>Ih?hxfwpYy_f-UCAZS&rG
+z?~Wz0qo-3B?Uqj}W2GbNU>yIBg58d^vOS2@Icjw4yd&Mg7&KyQv~{y}ZUHz(d8AKS
+zTrUuXqJ7A&jSz@1YAp}=a#K0#a&S+f!0V1bB3m7enn{*WPsVa7l3Cu=8h6k~mVi0v
+zOGZ%}ja_T5x*lTInQ7(jh`qv&a$DmIm3>I{&n#EX95JsBIW$$hRRN4UZG-d@DjFZo
+zlXV3#4-q3UnzVC9$b)@}*Jds_vkN941Rk?uz0Q5;87q0?Qc>HgdrVNpj|=<thoVr2
+zF!wCpR#C9${O<4_#>I;q1|ky#q=0R*JGC6LCp(=5ruB;npxym3FNV4D?qNymqX2Zg
+za+EU>`YRabh%d<8_`o@mx!vKk>^>d=t5D@hZk-vs4FQdljY8)G7ZH2?E);5lmaz*2
+zGpe^37xeDl`NL2$FK^TVm%s>TVQjb6anhB{6|^6GIF7f%D<K0tM~5PyVNx?sXM7%x
+zi6(0{=V8E_&&hW(NV&MF6#Gg7TdBj0L_^wsq!0<*eK&J+(W!|U3{iQ;)p({SdxSSV
+zD6Gh@%fZi0t?27*?zwZlZOSNW+ju?<vn?gDSr40LT{vKxJ*&n?Ff?R=<!f4X{cj&%
+zE1^CG5I?JE-#Vr|5Y(O%)Sb&|--61$8q|G+nS~1Kp3Bsq64jp|>Q5Q!Prm9;#q;Zj
+z+P4iU4~V*Rin{a6+B@*v@bl!(b8*6Re!_G499V-{r{2IPO?_RHIci}z)f`qXPPDrx
+zRo~HuV{y)B4#P1&_cVJDsB=(_i!y&`RF}7ag{y<X5#UO7{i1}wX0Y5k2X*F`SVFX0
+z<)@B#6yk&on4!WjB2<XLL>|1S-D0*|dz%Ggfu0*9xdxb*DdM=wgFnxwGt0-FwNB5H
+zXV7U0#4xY);fXMV>lER*an51BzCfAO91zDJr|R@;dOb{50^zKfT7D4S>RCOPDmff=
+z#2@D_jCtsr1x?bIm?0hGg)Qh02Ek`>^Kf=^Wc=G@fN7cS1(##$unA2`KVDm=+Y$4&
+zQ#M+h){$8>Gj@9Y@4TB@7!wN(YNf&*x_ccdM*_*i3!0LtMbt>JiMVp5Es>Ti!0zBg
+zoKF%(1>meDV`~6L!jkq)A^!$ymOYB4O0hdZA|7sAKnVTh<RvxZj<LTZ*fuActRqQ3
+z+STwb-GDB=A*B5_G{D+hYp+eu5{_+Qn$09~E01CBs=3}A{n$LxedijB#g2f|THP=$
+z*)>dpqvqG!v^}r2BwI9U2Lz$EhL86}0&b91w&i=`y6fMkw;~wFuhtFo;8Yk!XO#QC
+z@Re`f1wlZsT{%@^;Q<=s5z?(Sg{Ir00DjFd5gS1&2Y_2t>BLNYY81w!!n;RBpU}$*
+zdh*3L6OvgS`3Hg`yczhdreD?pqR-qcUj5a!ih(?D{sAX+z6SBr_xExG^DYS8M8c6a
+z&NKtyml!$g4M1H!yIXOLOqi+4QHN3XXjmdQL94O5W0xz-v+k>j$G`sV2%Sd!SLFN`
+z9c*`ZCRYMB8``gKD!;pF&3XqMIFLU?Ke&kxK1jyheja-Dh?(=)+ubZw;PRvV41hb4
+zslpGYyL{>v<^2n`-Xsoie(LY815GN>E|=m%2Ea5s`ZbCRrL&+iOMSrO1K%*sMpw$N
+zYtEREW~0q(@-o{eVW^=svZqr0^Mo;2d-gFbz$rSYZo(j~(RQo$Ht-JHbZU}(55*fy
+zt)*$&Ms@ix)?G(9aE+M#2ldCXeMj+w?5d#XIq?)}Ue$KWRa4<n@3IU0+RJT4ly|Vl
+z<IsAuhi?bD7R^Hh+98EM?}B(MP`U9`yhlG%(AIi<`(q^or_!ayy5i}3Jsi1gI|~zP
+zh=ta?7$kS3O#!Nl!9K6-_v5%{@A^)WB`|qdhW_%5IDr4jnAEkH;Q~Hr+I`g4+|!8M
+zO+s`1q2c413l)zU@_dp`2&f+2Y#SLg&6C+s6H^b||Lwf*LLIrX@?_eB4T99&y4U1J
+zaPTR5Yc`xPEUzr}*Rh@cz-p=4IR3fKOXyaavDOy?b2Bw)F1=g-xxq_#fb?uv&GVB6
+zn)P`*t$e95Fz|w75)Br7YQ#MjH3T{lS&Uk<j!%~T*XiNmYIvyMjiaf9pmmdb8BMv-
+zg$kl6vTzQ>11MCicT&5few`Z$-Xg(@yQA>OqSQ&QnT`h5LBqAN0+r)XoyC;*KAkB-
+zRBnu$Xl2hT-BDj|k?ykem2akg(LnKhYU3y{25}e~lytHx{B8*1B9lSWzZCB)p-GHZ
+zsV3XxJM6p-N!BzGLS?Q7(<4SdSR;ISL>Kr;_RB2WBfdO!I^yo#D?w|OJ+nLom(Z+_
+zB%p?DPSJb0D4=lxUBTY|N4$HFq6m&4MejvEGNvQG(f-E|6Uad;>-?|y-2^#pKc5Lo
+zI)q8mA9dhkq*G9(xAqHme<wcVQLeT3pYK=7!HU+Aw(iV0VVLUYAXy+^?U%65J6ql+
+zBr$g&=Sy@#h<Qz7c=i|ttZ#p5;~_C0HL%$x4uaRplbBb+H|txh$`;H$t>NM;db6OT
+zZx^E1??|pobOqP@+kg$ue<I-O!f?1!RD`JxeXvIx=)|{4KQjXUw=GA1sK41;6axKD
+zA}zWgO>#ZLqEZ#3j?bYsHjYFBE6Hh7107Jj-!_TvAF;@`9Q@9EsBL7lMiokQG`H~f
+zHqJ`7=j_g*{J5M=p}Osgwn9YkJ5QDR&h`*B{I^g*#)2KTT{WR);que%>Gsbf-;5as
+zZZ|fc<_Hd9)8!WdCMw(9FIh;OGZ`OvSNfacwp}A5Y8ewvujvO*1cJe=eQ(F<$8!*N
+zAS4H}FVDJJ?Ff?%qW;@Y$Z!&Z#r0N~?1&5EziicKm~Xs(pBGx?btThJSQ4zb?G9zC
+zNd3bjfwAGY>sf3QVO*b?fTjg$j9C{P4&IS0VEqkC(ly^sxqV0Fnh<dZsclQUDH{wa
+zWuX7jT78^ZqZBB_Pj6uD>B!Oh#_Klicx*@m!?R+le+X_Ku1jOwo)s}-X&sNu3x_+$
+zXD)=^fMf3bw!v)?wTJ$|1-@+yBU9ZqGf%kKsTKU6ZFS7RF?i_v@>u;fOIv`0?tIJK
+z%WLcaiar0e-l=-3SQO)I6>M4i?rnhk=!n)w^v|(o5V9gJdy<#5D)Q8QyPQr9ab0rT
+z?LS_Z<8k|YJjP{EX9-X7w90dA^RzDWj2b+=x5~Q+y5I3R0E}OtS>>(K-|Zk#J#($-
+zFn8X!1`TGQNujQT`K@TYsbEkV(DVkf(0dx)>mNd1dV62BFMD!9=ZirDR(WSZ7x(rt
+z&>s}F*GZMn_PC|=R{ZoP=?cq|+c@{P@%VoWt@8vJF9m@+nN;rc_gE{>^5Odv%Gjqt
+z-frXn`ayet?k3)~WHy}f#|(^fTbEt5M!WkOyG7grNnjg6=1{s6Ml&|NF^8kxYY%8u
+zmEa)qGfIpfH2=v%s`gQUWd8@n>~nhrZ@a0dX|k|i&1m>tt<s84j{7*@whJv9d>YVq
+zJ+{x++Vi@MFbx+;K47Bg`tyV7ykqUTulB8E4;WQHk7I&_v*>Z38pjkbePZMvEpaAn
+zoQ7hf71Pae&h+yVug2bbl+#GlFK|xH3370MGY)>UuWK~Y_B&^aPfiq~XIhj_6w*$?
+z&%UaGHT8bQPohfC>?Lg0d}({S&vxZcU7{|yeZ<CaMIvK(%+b%O`PkoIz5Mq`gJ^>L
+z?Y~O*BDu-T!3n3^RQL41`wY78<cguKMCNfUx_p=u`aUa^crfxbftP-0T6ZUbzO>CS
+z@D+Q&+&+ok*b#M?dGO?$iL1BG51Sgjbks-`a}9ziEjk4b4hTxlg|=nDW_ew6@I<Rk
+zmyUe3l}^KEIYCt6)3zfNP_+Jat4bGVsRzE^_GyLY=#WO}R<=d#%gt$Xb>>0hU<UQn
+zA|e4b(ugRPV@j()l!F7LmQ(YL9N3V_49IjZ6|)kyNj!Dr+W$p?ie<Z=DTzQ1^go&V
+z)Z<yg73j(;Wb9@c4k%vZ>fViG&~Gi!lyMLSOTY-?VGqsazCypxws@RL&K{9bcVRAp
+z-1HegZ=m<-($0+?LacZ9s#LDT``b@~>Bb7VK70XYtMsOdI@QqePrM^(;v6r4j`w<u
+zhq~SrFVh_!>cb~-*q{(?bCP=zK)#Vqf4BE~N&+4x*c`pw_<IYSjsJ|J^w2=?8S2~a
+z2j+Wsht_wU-g}*19OZ)R?G&;Jj?^o;S}H6eV+E%;IY4z~IWh~{oBYjKo{207-2N&z
+z`Tevfg3Zy+vMw~~T3)<64_RrAHHN&mZ<Fr5lAapK%wM$207n}8j++u|0MhU8h^N4R
+zaVhS0h|3iSdzwmv?frkYrUviV1%i+5S{RVkPkbVtgVlXhnT1LdG8cx~EMXe8=WKQ7
+zrP{X>+PBs~2@vNa3|M!L_EOF=yPCm>v~MZPTW2p<W^&Ka>dvDXdOU0+`k%uK5F8QU
+zeD!u|X0SRlv|`^=cv~nhfnt6*$_z$fap#kF1};ee7bJio3DBv_w$d};h(Ueb`PUI4
+zdR+<k@vq@J;o7AA<zjHh3^qW-b-VEWyZzVXqc{tA5!a5cG5Vb;!%dGiTUDzX0cmMa
+z1QmJIp(mEDE>zCT?Am4PtbNBa4}p|@D3Wv0d~TQ{AjW$_PyCXbhp3U3nvQ}t8#rY=
+zzE4Sa{3aXxXGy2q=rlK^n^IdMd{N3o^M9h^A`AT^3j?r;YD|L%cr&J)_*soR3^&q{
+ztD_W?A3fx6uKt{2>_JsC38bLh0dmlHRr@Qwel8h>9E+E)_uZ8CZsaAc^r^`Y-K1vD
+z{zN}Qd>!*!7QWcA?wa;oOYM5*A+&O;5JK<UpCxawFDXhU6pF_vh}WC92T;eKr*|{o
+zlP$Xi4F9-@Dtb~7f6P?!CThq8q#r)(mOj%^-D4ob!O`By!)fpi4vUM21+k95=MUUs
+zEfEhsdN)|D3$yU+*%Qm|6DaD<BVUdmutJ&W$S3{aS%2|g(5savNvHZ_1u@THE6;C>
+zsI47eJ(R8u#8@A>KK*_A&i`){fh73gx0l9gtK0^THUQHR-&~>AJt}N2=pgw#hV30K
+zfP??po`*fNU_ZQG=Q}V;F1jZ(WRtb=fF#jPchxr(W7fCH)ccZ0hFPOV&DhhOH>O9t
+zUS3)h;~g+*4Y>m0TSqM{`)JHUdwZQx2kZbd6g}MjM+I~crLR#Su1ELF=IHbvTX(3&
+zU@4Q6u#jKY239uI>GwY|0Oo1WI;r{wuWXsGlEu8M5`tl9lH3nue&I9qbmwkS4e23Y
+z`scc|E%?q&EvNaU7F)f4kMSi*nx?vbiRs_|X==!M>Y|*vCUq^}y^9mD*cukXpSUuI
+zNiKv7aMyjR46#%j4_T9qzpXq4SBKoW=JNa2Z5yA1O{?u)H=oIoo)G5L>5tG6G2*C9
+z#%}NiSFr-~z73v_9M)OKk{J2Qs_5gKEU4$MKENtN)I%p=z3p4S+Nc=$-)-$yJi6iD
+z0ElsL1S7!R%4oUwj?vIayT(3rzkFd?R=3cRqSoBIvL@P^+dg9Ab{PUYoEHTdZ9R2%
+z4JK*swy)A>u@xpu!rRkqs3QiTEK`3wQ;P-fm0CE(Sxi$KqqZ84nYZX1T_QvHBX4y9
+zhvT@-yGk8)R`65??x=@9k0V~8T`bimLYwd>Bp>o0FD&>cUsx=mbSrF-l?lp7UUzlZ
+zfBPbYgLUSZ9m4<bf*o+k`k~3$ZLm?_m^$jw!0P9t_>R!g0)E^x#$Z2f_jA;n8?b+f
+z)4yj)fI0uKDEud61jE%(%t@~Q^GK2HDyKG(e89hVTNB_;8dVnJ9QDzM+%)Hj<re*Z
+za(i$hcPKF}7<wLUziv)FAz(XaH5#<2$sRKRg0NTFh%7Ez=RAGv?zb81&+T(#Noma7
+z^<lPntQQ_6x82fDb9`_E4w#}Z0c2MP{8)|<3h!I>0Sg$qC!A-Pz9Y1Ni8rf`+5nT^
+z<M#szbknqv9acFf38ESSPWDaG*7oU00Fx5YYbL;c7Rgc2g+IsbYg6=6S%d&gYF49E
+z?q$@@@#9b95^nPQmqx*Pw)SD~jh>|>_BgvBodevM(@kHfPmCPFr@$4{kKmLCY`<}%
+zKr<)?3$i+#H~}W)8odHT;9@84#UXIfG!4^a2FHTRv!nMU6Q5%SoF{1S$8nv7aFwt5
+z0q!iWKEbOfbmuo~mjQIsHUN-;aZWo%K)XWV-hKSbmwE3LyxRAYJ!>+uc|$I2TuM;d
+z*#^6Ir^HEb_uvy|*&PwGuYS#c+Iwzinl8!4Ggx1W$`hyJIGxljt%4AE_aymjkOw7>
+zgV(No-F~{xH*7EY9q8Pb3?2jdm$i&gC!{jDV+L+-P+syXY9Yky&3fH|BiVk3`VN$!
+z&Z~93mnUX~ThZry)ipPSgFBd)+nmR<CdA=o3)B8#YXJBX*-80M4>0G%n##GuiaH9`
+zjz{g<62d>8&i4}VYSWCEx9eMP*MPm26|oG@laJJ{Q6c;U1BTRc^`4m_cPIH?zd1)!
+z15PRe_IxJAGA^#^=n^;i((Kozp_^V8@-Ms1)a#J6M_w39E!tH!`JfQB!#|~%nrM0h
+z0-k#Y7z=#XxqEkDbmO9XKyJr=T+om@!toztOiib!vUdjcqe7^cr}oH_sq8c99oDb}
+ztB~d0!o@@~!$sL(3tVpYBJFfLmCC2}2X)k;&xqJEM$SpYw}W;w>L|x8KDudR`Br0U
+zvaRmBc9I-~C*8Rw^ja=&jqaeGRQVe1e~Y3aTlS26VEXmhNB`z>`@MkB=NL5SjqnHh
+z7bylh#G#v3543mK@U4nq-3JsH_5Y#pth=+tCeAAQ{4Dwc7zubZGVnmp(u*tu6BREU
+zSfBdEh~Zn7)C9iQC3mgg?+iXRT{kC&b#Ogiz!9>~54WBG6Ce762a%BlA&c8PdVt9j
+z!`;CI-N9Yl=@lDQd%NKao2NOkWs;l|sOZ7dnix5JLFh#dFYg(#=FtUk;GXA*82RD-
+z-;giK70=kk_Y?s4)sq#v`DYy1>sEu?n$w}mKUYck=V={MpR0}@BEkczd=aN7Fu6Ny
+zgx)&-ZF5Y(?Ym<U?;^DG?Kh|{Mk6B{gE0{-YzDq)x5KxWDT4uL_`85sIH|2Wf(MDF
+zo}eJl@%mi{e6{CvT>xR8CFoYsjR>bRLxh8BDzQ5_Q_SYtIhR*Oc`HU5Dx>M3MAqin
+z5Fm@ff;v)jeSNeKXl|vyyIBXIj%~K0L#~c}V`n<}DU@KbL%=Y3(<dq&*t+6(1s)Wo
+zSmWft*sh!vUR{BxqV2G3aYlarNkt)eYV=e4YgLq4m2LJScgUgwZdE2zJGY8ZE%7?k
+z0s(0oS?M|Nz*v=u-xQ3+kAOnvpa$C%SyvYs_{;DIvZw%)NTpd(PhYfS(PaBYIs9Fs
+z*(I3`K%w@a5hm{qXF|JQd3pSdr_LVV!&8t28^nj6p}kW9Pe|%tXF49^`L#<**a}Nt
+z7c{Nw0RxtF*IR5OJA0hfOnYukfnm<yAzO0_!O!CCHwp~6+&32LbqO3SPX53bxxj+4
+zJwX_>6knn9J_`14Zf7@ob+>oh-4YVOyBpkm!7@rh?sx%=Pc?NnvJt|tPE~OEhJ8fu
+zM9OgY@qANwssc@^Lo^+^2zwHzVAWXn=rx8pT8NLnuy<<K4ZYX{PWDY^&cU}^MGW&&
+zIW}(WIR_fnWdq4$&WwL{7>M!Bi6!F&Y77%!oNdP#*ud{zbFUL%zhQX4p=fwqRIvT)
+ztH@f#$jmw!VDA~Z)RW(XGVXRR%WT(6AM>1p$??g1R+K2qkz_!Tgrcq$-dB})El+wA
+z%+<p`jAyG6yUoj^gk~IB)7o*RWs_abLj^TK=g$go#TH>{5o1ZO`59`WJnGDdyHI<x
+zPS@U`(#qG{+R%Lt)l#Z{xKM2fXy)+|$GE!q`gQ$f70&kCHyHb;J+<UHzTh;OHvHj#
+zn(I&<q_&CkCrI1hJEEf_fV&pm$`T|rpxwc%G_U5TdlCX^8lzFau>##mRZ8eafby~;
+zNAvXYbty2foVr68rvpy%Nh<_}ygGV(v6u^gy0Jn5uL-FY(DzU?FZv{vc&+=C6aXsw
+zD41zwnCW1U_A`5RD4x4ealI(h-pQ2eLo?=esDE2zMk|v6<b#ZNj2jEc(7~rN1>qQa
+z&o(%2(ELeff7}^1vQ+XDGyY;JLs`Q(Q<A5{Axm>yVUG>Y7Z&N{YA@~z&YM&jRx6x~
+z4)YHEnyn1PaZ;xlL3;;~PkXN<)YfFdR9&4S@JRzmfL6#;t9CoCnwNISgfH&y44IA)
+zFGMP;sT5k!D#LCP4Ux=mq+<&h?pvn`(^E6(d-Ba7*MeMLe<+QeOut~(QqxsCIvCMl
+zYS&)7^~yABnv7$HGyj=PKh)VQjX`K<&qCBh2=|!rrD6KPqMt}?N8aM~m&6_(BZmG0
+zE~rNw)9IZOWFDoB)gb(;M>@XC3D+{`evUHv4jQs&gDca*1{&>_`c=viyvmPbRx%1y
+zD=b^fVp9ViOZA{HwVJ_V_c~}aoHSMQnsMJmd8k%0(spANeI$qP4?CkuaFcz<>LF(b
+z5a$k<C(|wNEZMt~Qdy1H5T!x8kMo3?<`m^;$u0}O=W@C9XUWQp_(|&2=~&qtb+RUP
+zj=~aC(+%Wp>#;#b4fWVuTp_hO#m2c!umm%(N*)Sr3bhKEey!{uSSxYAcMJo=;TYC;
+zjX%{1(n>XeceLwq2py&4?{vG0AHE()Fak?icH?#Qi7}<P<v%YlbtnnS^#2I1%vL<w
+zAJXvtHAzV8$$Q~F=au|!c&kbK_LWKW#OjkS&qAr}iN<{M`OFs|5ad%)J(R?RWuPy{
+zYWLl6MIuAfo8~F@V5vTMOp5LOMR#_J=D*TOF~bA103tRH@c`zvoy?wD+0Q+n`*0n9
+z(F8*nu#_TT`N~nsdJxf<R@N^jE|#rw^I{GXgrxh-o54fQH<Fdum0>|vdqri%?3#Rd
+z4g$0TA1mBB=y7Fmj3Q&-E|42X>Khi#r$M~HbtL}6^?e~V&=R*_UrV=$)WERQF2k<h
+zS(sn(?NnBsI8L~Zop+q*c`V}Tw`r>XI2ZnWN>(|Ds__A<S<!#I2vS9{HaXSRH)S$m
+zp5EF77)yz2E0>}IrRhyHEsu+;@*&hQ`jM8-a}Hm<BFpAH`@-svF4VAt?iZ8aRfqhW
+za&qTmaNSju`0$s7ov|~XSC(ASGr5;=hBEH0`AR17_^Ac4iA%IKne`zR5AX7#{KpT~
+zkrCF~@bI(R`<Z@w&oAXl!jJM5bN9=K6?OX4m+_?XEo?EdXa8d8WAT1*+qu}BX$j6A
+z9rhb4GbNL5kLEC88wE&~SLLg6Bxqm9D@!lRAM6S{F7Pyo@liMRPZI~sBc8O|p4&12
+zLvwmgU(@8;=Vql%#J-eF+m_&2o&&XO)znmr&6Pr=MSl_mbD(Fq_R+<VPgHK<uTVbU
+zg>`&NsWpawCTP9Dou}pLMYgzQ_#>$!BhjxnT{&+qk}^$`Vk#C;?*S+}{2g9WkmW7=
+zuG#EjYL10q`2!ZVS!hSztqcj+-1dA7*<&y$5X=2L1<Y9#njPT7!2bSB)9fhd&o=@b
+zF9&RM=R*`B@|y<|^>1x^reAx>Z2k<a+S)({090hcI)4neDXw8&ot)Y(!mDyV$`qvG
+zwQPi+i18ZhDYY=;b({9)mJii1%<J`Qw{5Bi)~uph_Q_o@1jrLlYxju-*L~52bXWNv
+z>~Z8D#8@a9s2DSY(T1=|uElcn>!N=h_OHoZG^WDQxhDYYX%HBXb$?55eRJt-s==zt
+z!Gwf40Za(h55=XG3l*t?CtdU7(#n#ohI(S@xcQrROm`o+hz$AD49?twE@mJZzQ<%$
+zk+QtxmI}q?+Me2HGxCe^B5s$_h(qmol5RO4^Q>lGjT46n)=qiW4>BfC+CaEE%(K^5
+zm}6Rl>3Y{A{_I9v;Gc*Qhct0QKpqSBclisZM8|KZjiUs^P2)`S_H<(KO#EmYx^#KH
+zkFQOFT>|r*YO%2y6KCM>lkq9bk$@pzND1YrQkM{Uo<&V;nYNhKt^)b2P_2Pimr|w*
+zkOm>*V+u^(OEYD;mM;i@hQ#1a1&NYxk8Fu%Dr=J&L%kgPk$E#8KP^qgAXSMq3(Um?
+z*X65Nh+}!fT;t^10T=l3&AV)RcqTY02?1k~b4+h7`Ego81G<H2DfTGAK)7T2TGxQQ
+zpM%skFih2C%Cl)){_F4apT+51#jj|!%>&dK5@@D=W)6Q+qXo%5rjVPfbQH*A3Bty@
+zsAZkqO9a-ZGRAvjnSO<+GG&C;(N0TO(R>7gx^VT%xI(hki!+0rKXH)lJCz9l6!QG&
+z-wufENf)B=$|RV{J4=XTRj0)P3IA@Gvohws5_<1nT&FZh_Z536OA5(?hbT4t*D9_S
+zlZ*JqqvR}<{yn<;GK9tH0!#ixG;;HStb|Re4Ovj4*VSo3OFMzB#k}H6_pE{+$BBH)
+zsiw%#KIb2D24;`y`vgbkU06wzNtKbEyuA414Cp(}L-+{Mn4UwmYwNIQX`!s-#KP=Z
+zEMX+;1y|ae^!j;+SlvQrv&z8aEejvI2`}S9d}~4ypa(&bfQTa&kmys=d3uBCiqTKF
+ztZB=vPn^fRYwh#}<y?l920*42m@HqoUF?(tT$(4JFg^!XEtAzNAEZubZQ4l$YEI}Z
+z*Z0=Nk+E@PY&yke8pI)DB>EptWPhc*-UTm(Bv*5*Lxz-i91Q!oDTl^6rEuGVIMDBy
+z2pj|iz7TXd678a0w<zdzq=1^ST_(0S(#Z$=wN)-DC0%R#l&y<ZJw17sHf4=eMATxN
+z3xO}nsDx-1(8MXnk&W7y>=!JP2ErJ`tL9~b+qX4=%-dzG({-4xu-&$#Uf1NcK2c|I
+z(w2F0mTlQhSOd;mLi;L@UEY<H_nzrkGONkn42?(}Lmu^PB~=1$;4L2+)WysaOK@}K
+zqqXt#EbqUDg&MGY`D0J{g9+d?ku*b{*-lGL2Fms1oTT~A4a3bNzSeMyE;d<}Kh6db
+zJg~K2FV+nDPLx9Z`2fkrWpJQi=PSwULg%W=Jr*T~S%Nx~6e@MjtHd3-^12I0YF4=w
+zq0Zl8Mdnf+=08Rie}8sB+whSA)nU&O$Hn%KqMLD$S;*>?f42M+ZV&jhNhg_89s>1L
+z`H6YSd!er;(CL{%Q+p!sWSo{PS*{UxV3;EHi{sSG%rzr_U$*5UP3{xl^2*Bc)|v4i
+zikdUGJ<I{Af)sm@re9;f#&M}>`a*r2GwWa%Hw?H@C?#XYTM{ID!z-LR!WTAP%5S%}
+zcEWOslS17ZaKu*b(vLac+4lxB^*z9g*r7CC53AJd>`=0Hx}S1xJyEK@R7wa}<{;1o
+z9$NWo1gAt#0^_84j#C~CDQ9(oS?1^5kmiqt*hUk05`55b@&iv5&G>r=iVUb+7r#-=
+zppADtwk9)Yf0v<Hr4BdD+uCBO7a<?sFaap%L{d%uNSC!!J3W~5t7x1bL+FV6_RzBk
+zZlU!Wk!=xFmdVu4bcTis6avu9*aTyv<8m;`-gK_=d?dDvtR2FSi)l47KK6im6Vq{U
+zX(94FK3M$WI*a}!8t-3&BEOL%jMa<%_Gbw&TUMb^#hPfHmoB%KIloclCXTTzA(U3_
+zIe#WZtOU4w1d^!4Lnkv>b)3bL*G9)FYz(6r%s<6cw4hW-SzV2psz|(BtBI1fEml2-
+zs9rp7ImNF}@MxuD>zpGeeLtC8+m<yvnI$4@+swf%M9udBH=|yc_Mq7j9(BUPcPG`+
+zxW;K>G`n<Yj|_Oe4KyC6!y7opmcU%wYzwL(GAb+5SkByLjY6Kso7pFLyazT=amRz)
+z6Jp6`!)PZgOg-T>)If-Dw&jmKV#4PCAVy8zfA_1I|F`9TIK99E_m3om%~dZGUp1rt
+zh9G5GzWV>eZX~C_9<Q1Opy#ig_BD}lx#`4otJvOR7XG3Nmle4>Tvb*mUVSyl^~!;A
+zx4V$|RTHW(1S#6`)y{uV-o+i6a^XKS)^FYa2gGgawE551?!`>L@Oz-`dDH$R%vTbb
+zXhFEYs{_ke_dmoHZT~;ubTcZ4jT$o1_49iojT#y4=d7<c;2b%(tj1zs`b&k6QfG_&
+zhH#ajLG+mI9JY5(h~OK^pIcgAJsV~y3{&=FEQ}}%i&vRb)uE4n7a*-KAm!x<7~(~U
+zeQ8qtO)4f0xQLRsc{!V7ypm`2Iv~Bgl5W1aK%LQ+<IB=NZ7I#{edUv>?C75S4pzd+
+z+M4lcnEJwSlfrkouYgHVUNP$~ckGtmzynu~<!iC@Z_0Ajx%Jj?fjm0c9&+a<-c!x^
+z{vv{NjY##E!N*v$&#&JTXgJP!eH!_x)lDmX_AXeVh@tBzz0Q#YgLDQ(fh7B6Ul3X2
+zUhvVXL$UG@`Qn0*V!}YBk97%*_TuljUZdSqD<SX4ETc_fH5KX<HDY{<7`<5Lia`x2
+zaiDgr_OG3!u%u5WH2t#p-!W2H9u#uvddi<E{>VAZi@)}bgUxq|JcqclYgQ?SslO>H
+zA;V6=9B-zx{vy`@D!t59j@?1I2Bk7i?C0gDk0?IVxsq>aE#D0&N{3v(5g)=r^`944
+z{?+EVDk{KWGLM!&Iv=F`>jicRxkkN~NhSj(a<qt4#Um{r8ZjatJwtn5to*8DpE~qA
+z<F#<kKM0n4m<=DHimCh(a8lXqKq?$<zqXUs_n3Rdba>t3SKZUBRMkx*OFKbxbwP!x
+z&QtAg_v3dL{>_ZB?4a~QC%YAFPr1)mD7NZ-=5FxB&Xs>f{M1`f&B(I0Dk>JnAH@B!
+zJ(_;iWvO~^YiMjgg|hKUXXUSWy`OauGY|aTc~=nZL}Hl|umzMz`1RKRlMyoI-=!<e
+zrn0eys#<Q)BrO~1W2KBWI{uqhmM?RmsD^B?YVjb0UkiW-j>8}WRNI`LRKw7lx9mwv
+z+L#3jIv#m|*os8K5i>^!g^bqQnQ1|FAj#X<<g0HShpyiWTm%V`SUGjVMlR`pl<9*p
+z1H?JV&k4z=4{&Cv&Z15CPc1;CvYdy0=JSZSMiA(G=-lZ153WaxnUu5^TFA#ai9j4z
+zt<&;Q3+6*)(F&Fj1g-_=;Wuk+z*F?+&&qqh>QS5bRWgIk9X8jZCkOm+0(oS)KV2$i
+zX<#p2W3ON#xPoige||6(@w3Md?6b#zKdANI6pK7DF4RcWk+)WupWfj$ZaNB-ClUJ~
+zFZAo*tq!0(Ek$*WBE@oXE-!|hUGxr`i}K;tM>2Y~_l<FGU8nL;Da>uYnqUMe`7(Nt
+zE+xV1Bd76BFQ4k6ayQg=$_m}kc~W1rPJtm49IW>{_LMs+LewPKmr}q8%zs17^;aSH
+zEa8MVT5nU;sKX!gieVkWPoo=3ds%2t{tYNv6tCkWqTUz@*9c;oEiP@|{qe=uB{lQy
+zZ*BOUC^@+dk8>N6LhC%w{``)iXjelYGSh8G8IYCYn>4wsdZw7oRSFhjogILP2j0Pr
+zCJwOtv0>>)cb!4=8E?x-gl8KdHX(;_6&kdVU*42T&*ts|@n%%QKHi&R7<dfYgs6-u
+zWa!GZiUdsBla)DK_dU+SVfYq2C&WrE{lD~H<<{|4IR6R9|L#wOW&dNeNT~yG7)}BV
+zfBThqtM@J_@|WJ885JpC3K=$^_S<)JcYaaR2gZ6xd3AhA&rJTaw&V8zu>;7-H^aOD
+z-mlZ$?84K3D5Og8yB>d22XMVXl6sUR`f(!xdyOatVABF;`(p8H(ZOV$c>x|~%3wa{
+zjhAU|%8z~aZ?k6EK>RtX6!*D-@%V%)+LI#r0aLls7`$a)_*lwnvo@vOsWvEOkQaiC
+zkpH3rffiHwC}{fHr?#mQVeHP|dx9woP*&OJPz3SK6eCFWv<b2GwTr^ooB_V~JyM*X
+z|DX)lva^iVvU8-FXQP^FpLXPz1$_bDWEHd%qhOuzu#DGkpr!nL&0W{*Nz)dl*ZL_(
+zu5HT#__M^GJUs){gx+(_fM+?p!a<4`+5SGyT>V?hyy(Vh6rtsYbBr`s19c{_+jSj!
+z_pg>SPpp(;Y=C_7A0axDTy9{jiZGRw`4vi+-<v<A$77H0=A|i*zg{KpA(`u#%AaU3
+zc{sBFnBC4QP12dtD0#J4S=1hXp%=5J9eD&)XR?^K*=PG(l7FBGZm(YPM~@5hP8UG7
+zh)i8it=RRbPO#8Wu)mcRsrca8@-Gmq-C`=A#Qutj+Pi7pOI%!#!rnp-qj3_C&!uu#
+zStd{7lG~)mz-kC%<hg$?akjp7HCECY(vTM|{I@TQq~|ngB+<DWVOF-EWc1ns|NbCL
+z<S$S~rl2}ynD5@$8O>Jv=#cRrjAqFSQqtYwm6bB_D|bpaDkX|Z%NWFk@<XU}t#Vc4
+zTX}_Y{`c!Qq`H*pcG-2Uvl$VoToR@a_bAlbgK8!BN8er!B(sAW8OmL*a-9@_-leWf
+z`R@(GO~#H>jRxIORU!qU5<!xB3hj||a%U&zI~gbFZVSTp-#bt_Q1C(F9Z1nt`lJ1!
+zQDomV+W-@lMZEsHnHP$yGg_6iek<6H_Qmkr){;VdZ*x6I;)TB;2pd-AfBgppM(gn@
+zLDIBJH!k_y#{!$wLzfV9yZfgPOYA>ZrVNY^1eCZ()e1Q95mzP!A0RQJ)<GSU@o8Fr
+zndR2z7mk%@?h=Dlbr8ZYzE;xp?PwaQ^K>hou1$=#V2OwtGOE#e*Do6qOYIVW)9zSE
+z$p%3iIVzd;mv2pTQe2Ci3zjGErM;z>2a57W8rZySD+I52*g;9womYi*Y@R(H#=Q(H
+zxCTED7Vyq7$)?nbuI`P$=?5QN8-@$7EXydp{5-YIEUF+r?%v_EZKQJsY7|5?9h7xG
+z6jqCt%9aL(Xqb^z1_=jXl#dvgN_(f1A`Mp+vR4{&1HFS4a%2VE^Jph7n1v|hR`h#i
+zCjQqD4+xUY0w1p3WQ)E%ne9)qHdpdR?o)<dZy=f5sDI-cWg;>L_Rm=~bR){|Z$6S!
+zDZ7OebSgi2kf~f#FHQxmp|N5M`V(VfXCe2L3uIWhJcB1%PXAyce8PV{fp;7j!_=xs
+z-xz!cOE^lDUvH2-C2DK97+=peYySEobWoE)If~s*^m~*%)}1ANb5r9xlt2U%jk-pp
+z*<7HfEOm%!;w^X^Q8?oIsE|D9iPc5Us)`gvDrPogyt6)uVT<E=;k|WC?Gtv+_bs6%
+z#$@CM`0w+;8`@aB&ilV<8d1*E(&%_mpO9-Xm%laB^hv?B-ewZT02c0Ce^2)Gwa<TE
+zWiBhMX{VhP9wK}Y{?U|H)9*22Cj~A>9O)q=h*6hLbIr~=PuF;5Pa@x%lPe+~Lpcj=
+z&_z=L%&#2D^%=#>uzm~S_+}nrL{|No9B@*o`lny?WZlOx_S~_mrRx}2oox#&K!tL%
+zUrw#-vK)guvL+=wJ*zGaAAKh+*SjDUI^mYCX9zUPJG-!iYXW(1O-rZ-`#-~SJ?{AX
+zyH=KDZNLI8pik;F1tX5Jokq0THcKXM<YyjaWo<}VW&0g$${<^}fWBSV&3`TLh$89m
+ziq!<M!E*ZDB!y1mw;RRMlQpIWt7nj0k8ZQ<pZ0Hw{jibTHm~HI#x96KBB${N%IK#o
+zy)M$~fcW%d@T=a|aKf{M(aGr5z^#vCBs?ol&AD1Fg-eWlLWmNItC0`<SfTnF^I6sU
+N1Gl$A?QwYX{|ilz)BFGc
+
+literal 0
+HcmV?d00001
+
+diff --git a/modules/ii/background/Background.qml b/modules/ii/background/Background.qml
+index 52b7863..164cb34 100644
+--- a/modules/ii/background/Background.qml
++++ b/modules/ii/background/Background.qml
+@@ -76,8 +76,8 @@ Variants {
+         property bool wallpaperIsVideo: Wallpapers.isVideoPath(bgRoot.effectiveWallpaperPath)
+         readonly property string targetWallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : effectiveWallpaperPath
+         property string wallpaperPath: ""
+-        readonly property bool videoLayerActive: Platform.isWindows && wallpaperIsVideo && !wallpaperSafetyTriggered
+-        readonly property bool videoLayerParked: Platform.isWindows && !videoLayerActive && Wallpapers.currentDesktopWallpaper !== ""
++        readonly property bool videoLayerActive: Platform.isWindows && DesktopBackground.mayDrawVideo && wallpaperIsVideo && !wallpaperSafetyTriggered
++        readonly property bool videoLayerParked: Platform.isWindows && DesktopBackground.mayDrawVideo && !videoLayerActive && Wallpapers.currentDesktopWallpaper !== ""
+             && Wallpapers.isVideoPath(Config.options.background.wallpaperPath)
+         readonly property bool showVideoFrame: videoLayerActive && !(videoWallpaperLoader.item?.ready ?? false)
+         readonly property bool desktopCovered: HyprlandData.windowList.some(win => win.monitor == monitor?.id
+@@ -112,7 +112,7 @@ Variants {
+         }
+ 
+         readonly property bool widgetsAboveIcons: Platform.isWindows && (WindowsNative.desktopLayer?.active ?? false) && !GlobalStates.screenLocked
+-        readonly property bool nativeWallpaper: Platform.isWindows && Config.options.windowsPort.backgroundBehindIcons && !Config.options.windowsPort.ownWallpaper
++        readonly property bool nativeWallpaper: DesktopBackground.nativeWallpaper
+         readonly property Item widgetsSlot: widgetsWindowLoader.active ? (widgetsWindowLoader.item?.slot ?? null) : null
+         readonly property bool widgetsShown: (bgRoot.widgetsAboveIcons && bgRoot.widgetsSlot) ? (widgetsWindowLoader.item?.visible ?? false) : bgRoot.visible
+         readonly property bool widgetsAnimate: bgRoot.widgetsShown && !bgRoot.desktopCovered && !GlobalStates.screenLocked && !(Config.options.windowsPort.gameMode.enable ?? false)
+@@ -783,6 +783,27 @@ Variants {
+                     }
+                 }
+ 
++                Image {
++                    id: honkaiGlassBackdrop
++                    anchors.fill: parent
++                    // Invisible in the desktop; ShaderEffectSource still renders it.
++                    visible: false
++                    asynchronous: true
++                    cache: true
++                    fillMode: Image.PreserveAspectCrop
++                    source: {
++                        if (!Platform.isWindows || DesktopBackground.external || bgRoot.wallpaperSafetyTriggered
++                            || !(Config.options.background.widgets.glass.enable ?? false))
++                            return "";
++                        const path = bgRoot.wallpaperIsVideo
++                            ? Config.options.background.thumbnailPath
++                            : bgRoot.effectiveWallpaperPath;
++                        return path ? CF.FileUtils.folderUrl(path) : "";
++                    }
++                    readonly property real captureDpr: (QsWindow.window as QsWindow)?.devicePixelRatio ?? 1
++                    sourceSize: Qt.size(Math.max(1, Math.ceil(width * captureDpr)), Math.max(1, Math.ceil(height * captureDpr)))
++                }
++
+                 MouseArea {
+                     id: centeredDesktopThumpArea
+                     width: Math.max(1, centeredWallpaper.centeredShapeSize())
+@@ -804,7 +825,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -818,7 +839,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -833,7 +854,7 @@ Variants {
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+                         wallpaperSafetyTriggered: bgRoot.wallpaperSafetyTriggered
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                         animate: bgRoot.widgetsAnimate
+                     }
+                 }
+@@ -848,7 +869,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -862,7 +883,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -876,7 +897,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -890,7 +911,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -904,7 +925,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -918,7 +939,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -932,7 +953,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -946,7 +967,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -960,7 +981,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -974,7 +995,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -988,7 +1009,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -1002,7 +1023,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+ 
+@@ -1016,7 +1037,7 @@ Variants {
+                         scaledScreenWidth: bgRoot.screen.width
+                         scaledScreenHeight: bgRoot.screen.height
+                         wallpaperScale: 1
+-                        wallpaperItem: wallpaper
++                        wallpaperItem: Platform.isWindows ? honkaiGlassBackdrop : wallpaper
+                     }
+                 }
+             }
+diff --git a/modules/ii/background/widgets/resources/ResourcesWidget.qml b/modules/ii/background/widgets/resources/ResourcesWidget.qml
+index f554518..b9e89ec 100644
+--- a/modules/ii/background/widgets/resources/ResourcesWidget.qml
++++ b/modules/ii/background/widgets/resources/ResourcesWidget.qml
+@@ -38,7 +38,7 @@ AbstractBackgroundWidget {
+         implicitWidth: root.cardWidth
+         implicitHeight: root.cardHeight
+         widget: root
+-        color: statCard.bgColor
++        fallbackColor: statCard.bgColor
+ 
+         ColumnLayout {
+             anchors {
+diff --git a/modules/ii/background/widgets/worldclock/WorldClockWidget.qml b/modules/ii/background/widgets/worldclock/WorldClockWidget.qml
+index f5692be..0236f50 100644
+--- a/modules/ii/background/widgets/worldclock/WorldClockWidget.qml
++++ b/modules/ii/background/widgets/worldclock/WorldClockWidget.qml
+@@ -67,7 +67,8 @@ AbstractBackgroundWidget {
+             id: contentRect
+             anchors.fill: parent
+             widget: root
+-            color: sizeMode === "4x1" ? "transparent" : Appearance.colors.colPrimaryContainer
++            glass: sizeMode !== "4x1"
++            fallbackColor: sizeMode === "4x1" ? "transparent" : Appearance.colors.colPrimaryContainer
+             shadowed: sizeMode !== "4x1" && Config.options.background.widgets.shadow
+             blurred: Config.options.background.widgets.blurWidgets && sizeMode === "2x2"
+ 
+diff --git a/modules/ii/nabyIsland/NabyIslandMediaCard.qml b/modules/ii/nabyIsland/NabyIslandMediaCard.qml
+index aa526cd..566a0fa 100644
+--- a/modules/ii/nabyIsland/NabyIslandMediaCard.qml
++++ b/modules/ii/nabyIsland/NabyIslandMediaCard.qml
+@@ -177,7 +177,7 @@ Item {
+         anchors.rightMargin: 6
+         y: 108
+         symbolSize: 20
+-        enabled: Audio.sink !== null
++        enabled: Audio.outputAvailable
+         iconName: root.muted || root.volume <= 0 ? "volume_off" : root.volume < 0.5 ? "volume_down" : "volume_up"
+         downAction: () => Audio.toggleMute()
+     }
+@@ -189,15 +189,11 @@ Item {
+         anchors.verticalCenter: volumeButton.verticalCenter
+         width: 110
+         height: 14
+-        enabled: Audio.sink !== null
++        enabled: Audio.outputAvailable
+         alwaysShowKnob: true
+         value: root.muted ? 0 : root.volume
+         onMoved: value => {
+-            if (!Audio.sink?.audio)
+-                return;
+-            if (Audio.sink.audio.muted)
+-                Audio.sink.audio.muted = false;
+-            Audio.sink.audio.volume = value;
++            Audio.setVolume(value, true);
+         }
+     }
+ }
+diff --git a/modules/ii/nabyIsland/NabyIslandMediaTab.qml b/modules/ii/nabyIsland/NabyIslandMediaTab.qml
+index 8c9f05a..2e39661 100644
+--- a/modules/ii/nabyIsland/NabyIslandMediaTab.qml
++++ b/modules/ii/nabyIsland/NabyIslandMediaTab.qml
+@@ -41,11 +41,7 @@ Item {
+     }
+ 
+     function setVolume(value) {
+-        if (!Audio.sink?.audio)
+-            return;
+-        if (Audio.sink.audio.muted)
+-            Audio.sink.audio.muted = false;
+-        Audio.sink.audio.volume = Math.max(0, Math.min(1, value));
++        Audio.setVolume(Math.max(0, Math.min(1, value)), true);
+     }
+ 
+     component ControlButton: NabyIslandButton {
+diff --git a/modules/ii/screenCorners/ScreenCorners.qml b/modules/ii/screenCorners/ScreenCorners.qml
+index bde3e56..c95aefe 100644
+--- a/modules/ii/screenCorners/ScreenCorners.qml
++++ b/modules/ii/screenCorners/ScreenCorners.qml
+@@ -102,9 +102,7 @@ Scope {
+                         if (cornerWidget.isLeft)
+                             Brightness.decreaseBrightness()
+                         else {
+-                            const currentVolume = Audio.value;
+-                            const step = currentVolume < 0.1 ? 0.01 : 0.02 || 0.2;
+-                            Audio.sink.audio.volume -= step;
++                            Audio.decrementVolume();
+                         }
+                     }
+                     onScrollUp: {
+@@ -113,9 +111,7 @@ Scope {
+                         if (cornerWidget.isLeft)
+                             Brightness.increaseBrightness()
+                         else {
+-                            const currentVolume = Audio.value;
+-                            const step = currentVolume < 0.1 ? 0.01 : 0.02 || 0.2;
+-                            Audio.sink.audio.volume = Math.min(1, Audio.sink.audio.volume + step);
++                            Audio.incrementVolume();
+                         }
+                     }
+                     onMovedAway: {
+diff --git a/modules/ii/sidebarLeft/Anime.qml b/modules/ii/sidebarLeft/Anime.qml
+index a792dfb..f3b953d 100644
+--- a/modules/ii/sidebarLeft/Anime.qml
++++ b/modules/ii/sidebarLeft/Anime.qml
+@@ -371,7 +371,7 @@ Item {
+                     Layout.fillWidth: true
+                     padding: 10
+                     color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
+-                    renderType: Text.NativeRendering
++                    renderType: Appearance.textRenderType
+                     placeholderText: Translation.tr('Enter tags, or "%1" for commands').arg(root.commandPrefix)
+ 
+                     background: null
+diff --git a/modules/ii/sidebarLeft/aiChat/MessageCodeBlock.qml b/modules/ii/sidebarLeft/aiChat/MessageCodeBlock.qml
+index 3ddba66..0d831fb 100644
+--- a/modules/ii/sidebarLeft/aiChat/MessageCodeBlock.qml
++++ b/modules/ii/sidebarLeft/aiChat/MessageCodeBlock.qml
+@@ -223,7 +223,7 @@ ColumnLayout {
+                         Layout.fillWidth: true
+                         readOnly: !editing
+                         selectByMouse: enableMouseSelection || editing
+-                        renderType: Text.NativeRendering
++                        renderType: Appearance.textRenderType
+                         font.family: Appearance.font.family.monospace
+                         font.hintingPreference: Font.PreferNoHinting // Prevent weird bold text
+                         font.pixelSize: Appearance.font.pixelSize.small
+diff --git a/modules/ii/sidebarLeft/aiChat/MessageTextBlock.qml b/modules/ii/sidebarLeft/aiChat/MessageTextBlock.qml
+index 983b0df..21d5887 100644
+--- a/modules/ii/sidebarLeft/aiChat/MessageTextBlock.qml
++++ b/modules/ii/sidebarLeft/aiChat/MessageTextBlock.qml
+@@ -152,7 +152,7 @@ ColumnLayout {
+             Layout.fillWidth: true
+             readOnly: !editing
+             selectByMouse: enableMouseSelection || editing
+-            renderType: Text.NativeRendering
++            renderType: Appearance.textRenderType
+             font.family: Appearance.font.family.reading
+             font.hintingPreference: Font.PreferNoHinting // Prevent weird bold text
+             font.pixelSize: Appearance.font.pixelSize.small
+diff --git a/modules/ii/sidebarRight/QuickSliders.qml b/modules/ii/sidebarRight/QuickSliders.qml
+index e442c4c..52efadd 100644
+--- a/modules/ii/sidebarRight/QuickSliders.qml
++++ b/modules/ii/sidebarRight/QuickSliders.qml
+@@ -80,10 +80,9 @@ Rectangle {
+             active: Config.options.sidebar.quickSliders.showVolume
+             sourceComponent: QuickSlider {
+                 materialSymbol: "volume_up"
+-                value: Audio.sink.audio.volume
+-                onMoved: {
+-                    Audio.sink.audio.volume = value
+-                }
++                enabled: Audio.outputAvailable
++                value: Audio.sink?.audio?.volume ?? 0
++                onMoved: Audio.setVolume(value)
+             }
+         }
+ 
+@@ -96,10 +95,9 @@ Rectangle {
+             active: Config.options.sidebar.quickSliders.showMic
+             sourceComponent: QuickSlider {
+                 materialSymbol: "mic"
+-                value: Audio.source.audio.volume
+-                onMoved: {
+-                    Audio.source.audio.volume = value
+-                }
++                enabled: Audio.inputAvailable
++                value: Audio.source?.audio?.volume ?? 0
++                onMoved: Audio.setMicVolume(value)
+             }
+         }
+     }
+diff --git a/modules/ii/sidebarRight/quickToggles/classicStyle/EasyEffectsToggle.qml b/modules/ii/sidebarRight/quickToggles/classicStyle/EasyEffectsToggle.qml
+index 0bbe22d..8a5f826 100644
+--- a/modules/ii/sidebarRight/quickToggles/classicStyle/EasyEffectsToggle.qml
++++ b/modules/ii/sidebarRight/quickToggles/classicStyle/EasyEffectsToggle.qml
+@@ -21,7 +21,7 @@ QuickToggleButton {
+     }
+ 
+     altAction: () => {
+-        Quickshell.execDetached(["bash", "-c", "flatpak run com.github.wwmm.easyeffects || easyeffects"])
++        EasyEffects.openConfiguration()
+         GlobalStates.sidebarRightOpen = false
+     }
+ 
+diff --git a/modules/ii/sidebarRight/todo/TodoWidget.qml b/modules/ii/sidebarRight/todo/TodoWidget.qml
+index de364f3..673714f 100644
+--- a/modules/ii/sidebarRight/todo/TodoWidget.qml
++++ b/modules/ii/sidebarRight/todo/TodoWidget.qml
+@@ -174,7 +174,7 @@ Item {
+                     Layout.rightMargin: 16
+                     padding: 10
+                     color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
+-                    renderType: Text.NativeRendering
++                    renderType: Appearance.textRenderType
+                     selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
+                     selectionColor: Appearance.colors.colSecondaryContainer
+                     placeholderText: Translation.tr("Task description")
+diff --git a/modules/ii/spotlight/Spotlight.qml b/modules/ii/spotlight/Spotlight.qml
+index 26bab6b..1a91393 100644
+--- a/modules/ii/spotlight/Spotlight.qml
++++ b/modules/ii/spotlight/Spotlight.qml
+@@ -613,7 +613,7 @@ q="$1"; h="$2"
+                         placeholderText: root.currentMode?.placeholder ?? Translation.tr("Spotlight search")
+                         selectedTextColor: Appearance.colors.colOnSecondaryContainer
+                         selectionColor: Appearance.colors.colSecondaryContainer
+-                        renderType: Text.NativeRendering
++                        renderType: Appearance.textRenderType
+                         font {
+                             family: Appearance.font.family.main
+                             pixelSize: Appearance.font.pixelSize.normal
+diff --git a/modules/ii/wallpaperSelector/WallhavenSettingsPopup.qml b/modules/ii/wallpaperSelector/WallhavenSettingsPopup.qml
+index eb9af9d..a0ee027 100644
+--- a/modules/ii/wallpaperSelector/WallhavenSettingsPopup.qml
++++ b/modules/ii/wallpaperSelector/WallhavenSettingsPopup.qml
+@@ -462,7 +462,7 @@ WindowDialog {
+                         pixelSize: Appearance.font.pixelSize.small
+                         hintingPreference: Font.PreferFullHinting
+                     }
+-                    renderType: Text.NativeRendering
++                    renderType: Appearance.textRenderType
+                     background: Rectangle {
+                         color: Appearance.colors.colLayer1
+                         radius: Appearance.rounding.small
+diff --git a/modules/settings/BackgroundConfig.qml b/modules/settings/BackgroundConfig.qml
+index 6d86c1e..def6398 100644
+--- a/modules/settings/BackgroundConfig.qml
++++ b/modules/settings/BackgroundConfig.qml
+@@ -585,6 +585,17 @@ ContentPage {
+             }
+         }
+ 
++        ConfigSwitch {
++            visible: Platform.isWindows
++            buttonIcon: "blur_on"
++            text: Translation.tr("Glass widget backgrounds")
++            checked: Config.options.background.widgets.glass.enable
++            onCheckedChanged: Config.options.background.widgets.glass.enable = checked
++            StyledToolTip {
++                text: Translation.tr("Refracts the wallpaper inside supported desktop cards. Video wallpapers use a still image; use a still wallpaper in Fill mode for matching glass.")
++            }
++        }
++
+         ConfigSwitch {
+             buttonIcon: "lock_person"
+             text: Translation.tr("Show widgets on the lock screen")
+@@ -630,6 +641,45 @@ ContentPage {
+         icon: "desktop_windows"
+         title: Translation.tr("Windows desktop")
+ 
++        StyledText {
++            text: Translation.tr("Wallpaper owner")
++            color: Appearance.colors.colOnLayer1
++        }
++        ConfigSelectionArray {
++            currentValue: Config.options.windowsPort.wallpaperOwner
++            onSelected: newValue => {
++                Config.options.windowsPort.wallpaperOwner = newValue;
++                if (newValue !== "auto") Config.options.windowsPort.ownWallpaper = newValue === "ii";
++                if (newValue === "external") Config.options.windowsPort.backgroundBehindIcons = true;
++            }
++            options: [
++                { displayName: Translation.tr("Automatic (existing preference)"), value: "auto" },
++                { displayName: Translation.tr("Windows wallpaper"), value: "system" },
++                { displayName: Translation.tr("ii-managed wallpaper"), value: "ii" },
++                { displayName: Translation.tr("External app (Wallpaper Engine, Lively)"), value: "external" }
++            ]
++            StyledToolTip {
++                text: Translation.tr("External mode leaves the wallpaper app in control and keeps ii's widgets. Enable Native desktop glass for live Windows blur; otherwise cards are translucent. Liquid-lens refraction of external wallpapers is not available.")
++            }
++        }
++
++        ConfigSwitch {
++            buttonIcon: "blur_on"
++            text: Translation.tr("Native desktop glass (experimental)")
++            checked: Config.options.windowsPort.nativeDesktopGlass
++            enabled: Config.options.windowsPort.wallpaperOwner === "external"
++            onCheckedChanged: {
++                Config.options.windowsPort.nativeDesktopGlass = checked;
++                if (checked) {
++                    Config.options.windowsPort.backgroundBehindIcons = true;
++                    Config.options.background.widgets.glass.enable = true;
++                }
++            }
++            StyledToolTip {
++                text: Translation.tr("Use live Windows compositor blur behind desktop cards, including Wallpaper Engine. Requires Windows 11 and Transparency effects. Widgets use a bottom-layer, non-topmost window; the wallpaper stays in its original desktop host. Disabled during screen lock or game mode. This is native blur, not liquid-lens refraction. Turn off to restore embedded translucent cards.")
++            }
++        }
++
+         ConfigSwitch {
+             buttonIcon: "wallpaper"
+             text: Translation.tr("Put the background behind the desktop icons")
+@@ -645,6 +695,7 @@ ContentPage {
+         ConfigSwitch {
+             buttonIcon: "animation"
+             text: Translation.tr("Draw ii's own wallpaper")
++            visible: Config.options.windowsPort.wallpaperOwner === "auto"
+             enabled: Config.options.windowsPort.backgroundBehindIcons
+             checked: Config.options.windowsPort.ownWallpaper
+             onCheckedChanged: {
+diff --git a/modules/settings/InterfaceConfig.qml b/modules/settings/InterfaceConfig.qml
+index 5719f95..1471f32 100644
+--- a/modules/settings/InterfaceConfig.qml
++++ b/modules/settings/InterfaceConfig.qml
+@@ -10,6 +10,22 @@ import qs.modules.common.widgets
+ ContentPage {
+     forceWidth: true
+ 
++    ContentSection {
++        visible: Platform.isWindows
++        icon: "text_fields"
++        title: Translation.tr("Text rendering")
++        ConfigSelectionArray {
++            currentValue: Config.options.appearance.textRendering
++            onSelected: newValue => Config.options.appearance.textRendering = newValue
++            options: [
++                { displayName: Translation.tr("Automatic (distance field on Windows)"), value: "auto" },
++                { displayName: Translation.tr("Distance field"), value: "distance" },
++                { displayName: Translation.tr("Native raster"), value: "native" },
++                { displayName: Translation.tr("Curves"), value: "curves" }
++            ]
++        }
++    }
++
+     ContentSection {
+         icon: "view_quilt"
+         title: Translation.tr("Panel style")
+diff --git a/modules/settings/QuickConfig.qml b/modules/settings/QuickConfig.qml
+index 359f677..e24fe27 100644
+--- a/modules/settings/QuickConfig.qml
++++ b/modules/settings/QuickConfig.qml
+@@ -127,7 +127,7 @@ ContentPage {
+                                     key: "Ctrl"
+                                 }
+                                 KeyboardKey {
+-                                    key: Config.options.cheatsheet.superKey ?? "󰖳"
++                                    key: Platform.isWindows ? "Win" : (Config.options.cheatsheet.superKey ?? "󰖳")
+                                 }
+                                 StyledText {
+                                     Layout.alignment: Qt.AlignVCenter
+diff --git a/modules/settingsPc/pages/BackgroundConfig.qml b/modules/settingsPc/pages/BackgroundConfig.qml
+index 742930c..af66e5c 100644
+--- a/modules/settingsPc/pages/BackgroundConfig.qml
++++ b/modules/settingsPc/pages/BackgroundConfig.qml
+@@ -34,6 +34,7 @@ ContentPage {
+     ColumnLayout {
+         id: mainLayout
+         Layout.fillWidth: true
++        Layout.minimumWidth: 0
+         Layout.fillHeight: true
+         spacing: 20
+ 
+@@ -535,12 +536,52 @@ ContentPage {
+         }
+ 
+         ContentSection {
++            Layout.maximumWidth: Math.max(0, page.width - 40)
+             visible: Platform.isWindows
+             icon: "desktop_windows"
+             shape: W.MaterialShape.Shape.Ghostish
+             title: Translation.tr("Windows desktop")
+ 
+             GroupedList {
++                ConfigComboBox {
++                    text: Translation.tr("Wallpaper owner")
++                    objectName: "wallpaperOwnerControl"
++                    buttonIcon: "wallpaper"
++                    currentValue: Config.options.windowsPort.wallpaperOwner
++                    onSelected: newValue => {
++                        Config.options.windowsPort.wallpaperOwner = newValue;
++                        if (newValue !== "auto") Config.options.windowsPort.ownWallpaper = newValue === "ii";
++                        if (newValue === "external") Config.options.windowsPort.backgroundBehindIcons = true;
++                    }
++                    model: [
++                        { displayName: Translation.tr("Automatic"), value: "auto" },
++                        { displayName: Translation.tr("Windows wallpaper"), value: "system" },
++                        { displayName: Translation.tr("ii-managed"), value: "ii" },
++                        { displayName: Translation.tr("External app"), value: "external" }
++                    ]
++                    W.StyledToolTip {
++                        text: Translation.tr("External mode leaves the wallpaper app in control and keeps ii's widgets. Enable Native desktop glass for live Windows blur; otherwise cards are translucent. Liquid-lens refraction of external wallpapers is not available.")
++                    }
++                }
++
++                ConfigSwitch {
++                    objectName: "nativeDesktopGlassControl"
++                    buttonIcon: "blur_on"
++                    text: Translation.tr("Native desktop glass (experimental)")
++                    checked: Config.options.windowsPort.nativeDesktopGlass
++                    enabled: Config.options.windowsPort.wallpaperOwner === "external"
++                    onCheckedChanged: {
++                        Config.options.windowsPort.nativeDesktopGlass = checked;
++                        if (checked) {
++                            Config.options.windowsPort.backgroundBehindIcons = true;
++                            Config.options.background.widgets.glass.enable = true;
++                        }
++                    }
++                    W.StyledToolTip {
++                        text: Translation.tr("Use live Windows compositor blur behind desktop cards, including Wallpaper Engine. Requires Windows 11 and Transparency effects. Widgets use a bottom-layer, non-topmost window; the wallpaper stays in its original desktop host. Disabled during screen lock or game mode. This is native blur, not liquid-lens refraction. Turn off to restore embedded translucent cards.")
++                    }
++                }
++
+                 ConfigSwitch {
+                     buttonIcon: "wallpaper"
+                     text: Translation.tr("Put the background behind the desktop icons")
+@@ -556,6 +597,7 @@ ContentPage {
+                 ConfigSwitch {
+                     buttonIcon: "animation"
+                     text: Translation.tr("Draw ii's own wallpaper")
++                    visible: Config.options.windowsPort.wallpaperOwner === "auto"
+                     enabled: Config.options.windowsPort.backgroundBehindIcons
+                     checked: Config.options.windowsPort.ownWallpaper
+                     onCheckedChanged: {
+@@ -2108,6 +2150,17 @@ ContentPage {
+                         Config.options.background.widgets.shadow = checked;
+                     }
+                 }
++                ConfigSwitch {
++                    visible: Platform.isWindows
++                    buttonIcon: "blur_on"
++                    text: Translation.tr("Glass widget backgrounds")
++                    checked: Config.options.background.widgets.glass.enable
++                    onCheckedChanged: Config.options.background.widgets.glass.enable = checked
++                    W.StyledToolTip {
++                        text: Translation.tr("Refracts the wallpaper inside supported desktop cards. Video wallpapers use a still image; use a still wallpaper in Fill mode for matching glass.")
++                    }
++                }
++
+                 ConfigSwitch {
+                     buttonIcon: "lock_person"
+                     text: Translation.tr("Show widgets on the lock screen")
+diff --git a/modules/settingsPc/pages/InterfaceConfig.qml b/modules/settingsPc/pages/InterfaceConfig.qml
+index 6e85149..408bad7 100644
+--- a/modules/settingsPc/pages/InterfaceConfig.qml
++++ b/modules/settingsPc/pages/InterfaceConfig.qml
+@@ -18,6 +18,22 @@ ContentPage {
+         Layout.fillHeight: true
+         spacing: 20
+ 
++        ContentSection {
++            visible: Platform.isWindows
++            icon: "text_fields"
++            title: Translation.tr("Text rendering")
++            ConfigSelectionArray {
++                currentValue: Config.options.appearance.textRendering
++                onSelected: newValue => Config.options.appearance.textRendering = newValue
++                options: [
++                    { displayName: Translation.tr("Automatic (distance field on Windows)"), value: "auto" },
++                    { displayName: Translation.tr("Distance field"), value: "distance" },
++                    { displayName: Translation.tr("Native raster"), value: "native" },
++                    { displayName: Translation.tr("Curves"), value: "curves" }
++                ]
++            }
++        }
++
+         ContentSection {
+             icon: "view_quilt"
+             shape: W.MaterialShape.Shape.Cookie9Sided
+diff --git a/modules/settingsPc/pages/QuickConfig.qml b/modules/settingsPc/pages/QuickConfig.qml
+index b87e2d9..d150b61 100644
+--- a/modules/settingsPc/pages/QuickConfig.qml
++++ b/modules/settingsPc/pages/QuickConfig.qml
+@@ -662,7 +662,7 @@ ContentPage {
+                                         key: "Ctrl"
+                                     }
+                                     W.KeyboardKey {
+-                                        key: Config.options.cheatsheet.superKey ?? "󰖳"
++                                        key: Platform.isWindows ? "Win" : (Config.options.cheatsheet.superKey ?? "󰖳")
+                                     }
+                                     W.StyledText {
+                                         Layout.alignment: Qt.AlignVCenter
+diff --git a/modules/settingsPc/widgets/ConfigSwitch.qml b/modules/settingsPc/widgets/ConfigSwitch.qml
+index 8936783..eee2a15 100644
+--- a/modules/settingsPc/widgets/ConfigSwitch.qml
++++ b/modules/settingsPc/widgets/ConfigSwitch.qml
+@@ -8,9 +8,11 @@ RippleButton {
+     id: root
+     property string buttonIcon
+     property alias iconSize: iconWidget.iconSize
++    readonly property var switchControl: switchWidget
+     colBackgroundHover: "transparent"
+ 
+     Layout.fillWidth: true
++    Layout.minimumWidth: 0
+     Layout.bottomMargin: 6
+     implicitHeight: contentItem.implicitHeight + 8
+     font.pixelSize: Appearance.font.pixelSize.small
+@@ -28,6 +30,8 @@ RippleButton {
+         StyledText {
+             id: labelWidget
+             Layout.fillWidth: true
++            Layout.minimumWidth: 0
++            wrapMode: Text.Wrap
+             text: root.text
+             font: root.font
+             color: Appearance.colors.colOnSecondaryContainer
+diff --git a/modules/settingsPc/widgets/ConfigTextArea.qml b/modules/settingsPc/widgets/ConfigTextArea.qml
+index 4f9a40e..b353327 100644
+--- a/modules/settingsPc/widgets/ConfigTextArea.qml
++++ b/modules/settingsPc/widgets/ConfigTextArea.qml
+@@ -113,7 +113,7 @@ RowLayout {
+             color: root.colOnBackground
+             selectedTextColor: Appearance.colors.colOnSecondaryContainer
+             selectionColor: Appearance.colors.colSecondaryContainer
+-            renderType: Text.NativeRendering
++            renderType: Appearance.textRenderType
+             background: null
+             padding: 0
+             font {
+diff --git a/modules/settingsPc/widgets/ContentPage.qml b/modules/settingsPc/widgets/ContentPage.qml
+index 1917fa5..1e317ac 100644
+--- a/modules/settingsPc/widgets/ContentPage.qml
++++ b/modules/settingsPc/widgets/ContentPage.qml
+@@ -30,7 +30,7 @@ Item {
+ 
+         ColumnLayout {
+             id: contentColumn
+-            width: root.forceWidth ? root.baseWidth : Math.max(root.baseWidth, implicitWidth)
++            width: root.forceWidth ? Math.max(0, Math.min(root.baseWidth, flickable.width - 40)) : Math.max(root.baseWidth, implicitWidth)
+             anchors {
+                 top: parent.top
+                 horizontalCenter: parent.horizontalCenter
+diff --git a/modules/waffle/looks/WText.qml b/modules/waffle/looks/WText.qml
+index ab6dd60..0e3043d 100644
+--- a/modules/waffle/looks/WText.qml
++++ b/modules/waffle/looks/WText.qml
+@@ -1,9 +1,10 @@
++import qs.modules.common
+ import QtQuick
+ 
+ Text {
+     id: root
+ 
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     verticalAlignment: Text.AlignVCenter
+     color: Looks.colors.fg
+ 
+diff --git a/modules/waffle/looks/WTextField.qml b/modules/waffle/looks/WTextField.qml
+index a3cc9db..6279956 100644
+--- a/modules/waffle/looks/WTextField.qml
++++ b/modules/waffle/looks/WTextField.qml
+@@ -7,7 +7,7 @@ TextField {
+     id: root
+     
+     clip: true
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     verticalAlignment: Text.AlignVCenter
+     color: Looks.colors.fg
+ 
+diff --git a/modules/waffle/looks/WTextInput.qml b/modules/waffle/looks/WTextInput.qml
+index 84bed18..80b9a38 100644
+--- a/modules/waffle/looks/WTextInput.qml
++++ b/modules/waffle/looks/WTextInput.qml
+@@ -1,9 +1,10 @@
++import qs.modules.common
+ import QtQuick
+ import QtQuick.Controls
+ 
+ TextInput {
+     id: root
+-    renderType: Text.NativeRendering
++    renderType: Appearance.textRenderType
+     verticalAlignment: Text.AlignVCenter
+     color: Looks.colors.fg
+ 
+diff --git a/services/Audio.qml b/services/Audio.qml
+index 0b39f84..f380283 100644
+--- a/services/Audio.qml
++++ b/services/Audio.qml
+@@ -18,7 +18,9 @@ Singleton {
+     property PwNode source: Pipewire.defaultAudioSource
+     readonly property real hardMaxValue: 2.00 // People keep joking about setting volume to 5172% so...
+     property string audioTheme: Config.options.sounds.theme
+-    property real value: sink?.audio.volume ?? 0
++    property real value: sink?.audio?.volume ?? 0
++    readonly property bool outputAvailable: (root.sink?.ready ?? false) && !!root.sink?.audio
++    readonly property bool inputAvailable: (root.source?.ready ?? false) && !!root.source?.audio
+     
+     function friendlyDeviceName(node) {
+         return (node.nickname || node.description || Translation.tr("Unknown"));
+@@ -64,24 +66,45 @@ Singleton {
+     signal sinkProtectionTriggered(string reason);
+ 
+     // Controls
++    function setVolume(value, unmute = false) {
++        const audio = root.sink?.audio;
++        if (!root.outputAvailable || !audio || !Number.isFinite(value)) return false;
++        if (unmute) audio.muted = false;
++        audio.volume = Math.max(0, Math.min(Platform.isWindows ? 1 : root.hardMaxValue, value));
++        return true;
++    }
++
++    function setMicVolume(value) {
++        const audio = root.source?.audio;
++        if (!root.inputAvailable || !audio || !Number.isFinite(value)) return false;
++        audio.volume = Math.max(0, Math.min(Platform.isWindows ? 1 : root.hardMaxValue, value));
++        return true;
++    }
++
+     function toggleMute() {
+-        Audio.sink.audio.muted = !Audio.sink.audio.muted
++        const audio = root.sink?.audio;
++        if (!root.outputAvailable || !audio) return false;
++        audio.muted = !audio.muted;
++        return true;
+     }
+ 
+     function toggleMicMute() {
+-        Audio.source.audio.muted = !Audio.source.audio.muted
++        const audio = root.source?.audio;
++        if (!root.inputAvailable || !audio) return false;
++        audio.muted = !audio.muted;
++        return true;
+     }
+ 
+     function incrementVolume() {
+-        const currentVolume = Audio.value;
+-        const step = currentVolume < 0.1 ? 0.01 : 0.02 || 0.2;
+-        Audio.sink.audio.volume = Math.min(1, Audio.sink.audio.volume + step);
++        const currentVolume = root.value;
++        const step = currentVolume < 0.1 ? 0.01 : 0.02;
++        return root.setVolume(Math.min(1, currentVolume + step));
+     }
+-    
++
+     function decrementVolume() {
+-        const currentVolume = Audio.value;
+-        const step = currentVolume < 0.1 ? 0.01 : 0.02 || 0.2;
+-        Audio.sink.audio.volume = Math.max(0, Audio.sink.audio.volume - step);
++        const currentVolume = root.value;
++        const step = currentVolume < 0.1 ? 0.01 : 0.02;
++        return root.setVolume(Math.max(0, currentVolume - step));
+     }
+ 
+     function setDefaultSink(node) {
+@@ -103,7 +126,13 @@ Singleton {
+         property real lastVolume: 0
+         function onVolumeChanged() {
+             if (!Config.options.audio.protection.enable) return;
+-            const newVolume = sink.audio.volume;
++            const audio = root.sink?.audio;
++            if (!audio) {
++                lastReady = false;
++                lastVolume = 0;
++                return;
++            }
++            const newVolume = audio.volume;
+             // when resuming from suspend, we should not write volume to avoid pipewire volume reset issues
+             if (isNaN(newVolume) || newVolume === undefined || newVolume === null) {
+                 lastReady = false;
+@@ -119,13 +148,13 @@ Singleton {
+             const maxAllowed = Config.options.audio.protection.maxAllowed / 100;
+ 
+             if (newVolume - lastVolume > maxAllowedIncrease) {
+-                sink.audio.volume = lastVolume;
++                audio.volume = lastVolume;
+                 root.sinkProtectionTriggered(Translation.tr("Illegal increment"));
+             } else if (newVolume > maxAllowed || newVolume > root.hardMaxValue) {
+                 root.sinkProtectionTriggered(Translation.tr("Exceeded max allowed"));
+-                sink.audio.volume = Math.min(lastVolume, maxAllowed);
++                audio.volume = Math.min(lastVolume, maxAllowed);
+             }
+-            lastVolume = sink.audio.volume;
++            lastVolume = audio.volume;
+         }
+     }
+ 
+diff --git a/services/DesktopBackground.qml b/services/DesktopBackground.qml
+new file mode 100644
+index 0000000..1e33267
+--- /dev/null
++++ b/services/DesktopBackground.qml
+@@ -0,0 +1,54 @@
++pragma Singleton
++import QtQuick
++import qs
++import Quickshell
++import qs.modules.common
++import "../modules/common/functions/WindowsPolicy.js" as WindowsPolicy
++
++Singleton {
++    id: root
++
++    function syncNativeOwnership() {
++        if (!Platform.isWindows) return;
++        if (Config.ready) {
++            const backend = WindowsNative.wallpaper;
++            if (backend && backend.externalControl !== undefined) backend.externalControl = root.external;
++        }
++        const desktop = WindowsNative.desktopLayer;
++        if (desktop && desktop.nativeGlassNamespaces !== undefined) {
++            desktop.nativeGlassNamespaces = Config.ready && root.external && root.nativeGlassEnabled ? ["quickshell:backgroundWidgets"] : [];
++        }
++    }
++
++    onExternalChanged: syncNativeOwnership()
++    onNativeGlassEnabledChanged: syncNativeOwnership()
++    Component.onCompleted: syncNativeOwnership()
++    Connections {
++        target: Config
++        function onReadyChanged() { root.syncNativeOwnership(); }
++    }
++    Connections {
++        target: Platform.isWindows ? WindowsNative : null
++        function onReadyChanged() { root.syncNativeOwnership(); }
++    }
++
++    readonly property string owner: WindowsPolicy.wallpaperOwner(
++        Config.options.windowsPort.wallpaperOwner, Config.options.windowsPort.ownWallpaper)
++    readonly property bool external: Platform.isWindows && owner === "external"
++    readonly property bool nativeWallpaper: Platform.isWindows && (external
++        || (Config.options.windowsPort.backgroundBehindIcons && owner !== "ii"))
++    readonly property bool mayWriteSystemWallpaper: !external
++    readonly property bool mayDrawVideo: !external
++    readonly property bool nativeGlassAvailable: Platform.isWindows
++        && WindowsNative.desktopLayer?.nativeGlassAvailable === true
++    readonly property bool nativeGlassEnabled: Config.ready && WindowsPolicy.nativeDesktopGlass({
++        windows: Platform.isWindows, external: root.external,
++        requested: Config.options.windowsPort.nativeDesktopGlass,
++        available: root.nativeGlassAvailable,
++        behindIcons: Config.options.windowsPort.backgroundBehindIcons,
++        glass: Config.options.background.widgets.glass.enable,
++        locked: GlobalStates.screenLocked,
++        gameMode: Config.options.windowsPort.gameMode.enable
++    })
++    readonly property string glassSource: nativeGlassEnabled ? "native-backdrop" : external ? "unavailable" : "static-image"
++}
+diff --git a/services/EasyEffects.qml b/services/EasyEffects.qml
+index 040c51c..990f996 100644
+--- a/services/EasyEffects.qml
++++ b/services/EasyEffects.qml
+@@ -16,13 +16,20 @@ Singleton {
+     property bool active: false
+ 
+     function fetchAvailability() {
++        if (Platform.isWindows) return;
+         fetchAvailabilityProc.running = true
+     }
+ 
+     function fetchActiveState() {
++        if (Platform.isWindows) return;
+         fetchActiveStateProc.running = true
+     }
+ 
++    function openConfiguration() {
++        if (Platform.isWindows) return;
++        Quickshell.execDetached(["bash", "-c", "flatpak run com.github.wwmm.easyeffects || easyeffects"]);
++    }
++
+     function disable() {
+         if (Platform.isWindows) return;
+         root.active = false
+diff --git a/services/ProblemReport.qml b/services/ProblemReport.qml
+index a5971db..e720e8e 100644
+--- a/services/ProblemReport.qml
++++ b/services/ProblemReport.qml
+@@ -14,7 +14,7 @@ Singleton {
+     property string zipPath: ""
+     property string lastError: ""
+     property bool includeCrashDump: false
+-    readonly property string newIssueUrl: "https://github.com/nunreasonable/ii-windows/issues/new"
++    readonly property string newIssueUrl: "https://github.com/Ninefarer/ii-windows/issues/new"
+     readonly property var styleNames: ({
+             "ii": "illogical-impulse (ii)",
+             "end4pc": "end4-pC",
+diff --git a/services/SelfUpdate.qml b/services/SelfUpdate.qml
+index 3568ba7..8ee7601 100644
+--- a/services/SelfUpdate.qml
++++ b/services/SelfUpdate.qml
+@@ -4,6 +4,7 @@ pragma ComponentBehavior: Bound
+ import qs.services
+ import qs.modules.common
+ import qs.modules.common.functions
++import "../modules/common/functions/WindowsPolicy.js" as WindowsPolicy
+ import QtQuick
+ import Quickshell
+ import Quickshell.Io
+@@ -12,7 +13,7 @@ Singleton {
+     id: root
+ 
+     readonly property string curlBin: Platform.isWindows ? "curl.exe" : "curl"
+-    readonly property string repo: "nunreasonable/ii-windows"
++    readonly property string repo: "Ninefarer/ii-windows"
+     readonly property string setupAssetName: "ii-windows-setup.exe"
+     readonly property string apiOverride: Quickshell.env("IIW_SELF_UPDATE_RELEASE_JSON") || ""
+     readonly property string apiUrl: root.apiOverride !== "" ? root.apiOverride
+@@ -224,6 +225,7 @@ Singleton {
+     function _saveCache() {
+         if (!Platform.isWindows) return;
+         cacheFileView.setText(JSON.stringify({
++            repository: root.repo,
+             lastCheckedAt: root.lastCheckedAt,
+             latestVersion: root.latestVersion,
+             releaseName: root.releaseName,
+@@ -271,12 +273,14 @@ Singleton {
+         onLoaded: {
+             try {
+                 const data = JSON.parse(cacheFileView.text());
++                if (WindowsPolicy.acceptsUpdateCache(data, root.repo)) {
+                 root.latestVersion = data.latestVersion ?? "";
+                 root.releaseName = data.releaseName ?? "";
+                 root.htmlUrl = data.htmlUrl ?? "";
+                 root.setupUrl = data.setupUrl ?? "";
+                 root.setupSize = data.setupSize ?? 0;
+                 root.lastCheckedAt = data.lastCheckedAt ?? 0;
++                }
+             } catch (e) {}
+             root._cacheDone = true;
+             root._startupCheck();
+diff --git a/services/Wallpapers.qml b/services/Wallpapers.qml
+index 66ca64b..200d33d 100644
+--- a/services/Wallpapers.qml
++++ b/services/Wallpapers.qml
+@@ -44,7 +44,7 @@ Singleton {
+     readonly property bool perDesktop: Platform.isWindows && (Config.options.background.desktopWallpapers?.enable ?? false)
+     readonly property bool collageShown: (Config.options.background.collage?.enable ?? false)
+         && Config.options.panelFamily !== "waffle"
+-        && !(Config.options.windowsPort.backgroundBehindIcons && !Config.options.windowsPort.ownWallpaper)
++        && !DesktopBackground.nativeWallpaper
+     readonly property bool desktopWallpapersActive: root.perDesktop && !root.collageShown
+     readonly property var desktopWallpaperPaths: Config.options.background.desktopWallpapers?.paths ?? ({})
+     readonly property var desktops: root.perDesktop ? (WindowsNative.wallpaper?.desktops ?? []) : []
+@@ -84,6 +84,7 @@ Singleton {
+     function load () {} // For forcing initialization
+ 
+     function startPreview(path) {
++        if (DesktopBackground.external) return;
+         if (!path || path.length === 0) return;
+         if (Platform.isWindows && root.isVideoPath(path)) return;
+         if (!SpicyStuff.allowed && root.isInSpicyFolder(path)) return;
+@@ -173,7 +174,7 @@ Singleton {
+ 
+     function followSystemWallpaper() {
+         const wn = WindowsNative.wallpaper;
+-        if (!wn || !Config.ready || Config.options.windowsPort.ownWallpaper) return;
++        if (!wn || !Config.ready || DesktopBackground.external || !DesktopBackground.nativeWallpaper) return;
+         const current = wn.currentWallpaper();
+         if (!current || current.length === 0) return;
+         const normalized = path => FileUtils.trimFileProtocol(path).replace(/\\/g, "/").toLowerCase();
+@@ -342,6 +343,10 @@ Singleton {
+     }
+ 
+     function apply(path, darkMode = Appearance.m3colors.darkmode) {
++        if (DesktopBackground.external) {
++            console.warn("[Wallpapers] Wallpaper selection is controlled by the external wallpaper app.");
++            return;
++        }
+         if (!path || path.length === 0) return;
+         if (!SpicyStuff.allowed && root.isInSpicyFolder(path)) {
+             console.warn("[Wallpapers] Not applying a wallpaper from the Spicy Stuff folder:", SpicyStuff.restriction);
+@@ -416,11 +421,15 @@ Singleton {
+     }
+ 
+     readonly property bool systemDrawsWallpaper: Config.options.panelFamily !== "waffle"
+-        && Config.options.windowsPort.backgroundBehindIcons && !Config.options.windowsPort.ownWallpaper
++        && DesktopBackground.nativeWallpaper
+ 
+     function _retheme(path, darkMode, applyToSystem = true, videoPath = "") {
+         const wn = WindowsNative.wallpaper;
+         if (!wn) return;
++        if (applyToSystem && DesktopBackground.external) {
++            console.warn("[Wallpapers] The external wallpaper app owns the background; select a different wallpaper owner to apply an ii wallpaper.");
++            return;
++        }
+         if (!SpicyStuff.allowed && root.isInSpicyFolder(path)) {
+             console.warn("[Wallpapers] Not using a wallpaper from the Spicy Stuff folder:", SpicyStuff.restriction);
+             return;
+@@ -444,7 +453,7 @@ Singleton {
+             const target = videoPath.length > 0 ? videoPath : path;
+             const changed = root.normalizedPath(target) !== root.normalizedPath(Config.options.background.wallpaperPath);
+             const desktopKeepsOwn = root.desktopWallpapersActive && (root.systemDrawsWallpaper || root._nativeDesktopWallpapers) && root.currentDesktopWallpaper !== "";
+-            if (applyToSystem && !desktopKeepsOwn) {
++            if (applyToSystem && !desktopKeepsOwn && DesktopBackground.mayWriteSystemWallpaper) {
+                 wn.setWallpaper(path, root.systemDrawsWallpaper);
+                 root._systemWallpaper = path;
+                 root._systemShowsOwn = false;
+@@ -452,7 +461,7 @@ Singleton {
+             }
+             Config.options.background.wallpaperPath = target;
+             if (videoPath.length > 0) Config.options.background.thumbnailPath = path;
+-            if (applyToSystem && changed) root._syncWindowsLockScreen(path);
++            if (applyToSystem && changed && DesktopBackground.mayWriteSystemWallpaper) root._syncWindowsLockScreen(path);
+         }
+ 
+         if (Config.options.appearance.wallpaperTheming.enableAppsAndShell === false) {
+@@ -519,7 +528,7 @@ Singleton {
+     }
+ 
+     readonly property string _desktopSyncState: (!Platform.isWindows || !root._shellProcess || !Config.ready || !WindowsNative.wallpaper) ? ""
+-        : JSON.stringify([root.desktopWallpapersActive, root.systemDrawsWallpaper, root._systemDesktopPaths, root.stillPath,
++        : JSON.stringify([DesktopBackground.owner, root.desktopWallpapersActive, root.systemDrawsWallpaper, root._systemDesktopPaths, root.stillPath,
+             root.desktops.map(desktop => desktop.id)])
+     on_DesktopSyncStateChanged: {
+         if (root._desktopSyncState !== "") desktopSyncTimer.restart();
+@@ -533,7 +542,7 @@ Singleton {
+ 
+     function _syncDesktopWallpapers() {
+         const wn = WindowsNative.wallpaper;
+-        if (!wn || !Config.ready || !root._shellProcess) return;
++        if (!wn || !Config.ready || !root._shellProcess || !DesktopBackground.mayWriteSystemWallpaper) return;
+         const active = root.desktopWallpapersActive;
+         if (!active && !root._desktopWallpapersSynced) return;
+         const main = root.stillPath;
+@@ -546,7 +555,7 @@ Singleton {
+ 
+     function _syncSystemWallpaper() {
+         const wn = WindowsNative.wallpaper;
+-        if (!wn || !Config.ready || !root._shellProcess || !root._desktopSyncChecked || root._nativeDesktopWallpapers) return;
++        if (!wn || !Config.ready || !root._shellProcess || !DesktopBackground.mayWriteSystemWallpaper || !root._desktopSyncChecked || root._nativeDesktopWallpapers) return;
+         const main = root.stillPath;
+         if (!main || root.isVideoPath(main)) return;
+         if (root._systemWallpaper === "") {

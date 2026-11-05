@@ -1,0 +1,177 @@
+name: Single EXE preview installer
+on:
+  push:
+    branches: [windows-native-end4]
+    paths: [packaging/**, .github/workflows/offline-installer.yml]
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Successful Windows native candidate run ID
+        required: true
+      publish_release:
+        description: Publish the validated EXE to an existing draft prerelease
+        type: boolean
+        default: false
+permissions:
+  actions: read
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_RUN: ${{ inputs.candidate_run }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for the candidate including runtime smoke tests
+        timeout-minutes: 45
+        run: |
+          if [ -z "$CANDIDATE_RUN" ]; then
+            CANDIDATE_RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/native-candidate.yml/runs?branch=windows-native-end4&per_page=1" --jq '.workflow_runs[0].id')
+          fi
+          echo "CANDIDATE_RUN=$CANDIDATE_RUN" >> "$GITHUB_ENV"
+          while true; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN" > candidate.json
+            status=$(python -c 'import json; print(json.load(open("candidate.json"))["status"])')
+            [ "$status" = completed ] && break
+            echo "Waiting for candidate $CANDIDATE_RUN ($status)"
+            sleep 30
+          done
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN" > candidate.json
+          python - <<'PY'
+          import json, os
+          run = json.load(open('candidate.json'))
+          assert (run['name'], run['path'].split('@')[0]) in [('Windows native candidate', '.github/workflows/native-candidate.yml'), ('Windows runtime candidate', '.github/workflows/native-runtime-candidate.yml'), ('Windows UI candidate', '.github/workflows/ui-candidate.yml')]
+          assert run['head_branch'] == 'windows-native-end4'
+          assert run['status'] == 'completed' and run['conclusion'] == 'success', 'candidate has not passed all checks'
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f"ARTIFACT_NAME=ii-windows-windows-native-end4-{run['run_number']}\n")
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ env.CANDIDATE_RUN }}
+          name: ${{ env.ARTIFACT_NAME }}
+          path: candidate
+      - name: Record the compiled source and runtime validation separately
+        run: |
+          python - <<'PY'
+          import json, pathlib, zipfile
+          run = json.load(open('candidate.json'))
+          packages = list(pathlib.Path('candidate').glob('ii-windows-*.zip'))
+          assert len(packages) == 1
+          with zipfile.ZipFile(packages[0]) as z:
+              provenance = json.loads(z.read('SOURCE-PROVENANCE.json'))
+          reuse_file = pathlib.Path('candidate/REUSED-BUILD.json')
+          if run['name'] == 'Windows runtime candidate':
+              reuse = json.loads(reuse_file.read_text())
+              assert reuse['validationRunId'] == run['id'] and reuse['validationCommit'] == run['head_sha']
+              assert reuse['buildCommit'] == provenance['packagingCommit']
+              run['packageBuildRunId'] = reuse['buildRunId']
+          else:
+              assert not reuse_file.exists() and provenance['packagingCommit'] == run['head_sha']
+              run['packageBuildRunId'] = run['id']
+          run['packageSourceCommit'] = provenance['packagingCommit']
+          run['packageValidationCommit'] = run['head_sha']
+          pathlib.Path('candidate.json').write_text(json.dumps(run, indent=2) + '\n')
+          PY
+      - name: Install packaging tools
+        run: sudo apt-get update -qq && sudo apt-get install -y nsis p7zip-full
+      - name: Build the single EXE
+        run: python3 packaging/build-single-exe.py candidate out
+      - name: Verify bundled payloads match the tested build
+        run: |
+          7z x out/*.exe -overify
+          cmp candidate/ii-windows-setup.exe 'verify/$PLUGINSDIR/ii-windows-setup.exe'
+          cmp candidate/ii-windows-*.zip 'verify/$PLUGINSDIR/payload.zip'
+          (cd 'verify/$PLUGINSDIR' && sha256sum -c payload.zip.sha256)
+          cp candidate/ii-windows-*.zip candidate/ii-windows-*.zip.sha256 out/
+          cp candidate.json out/CANDIDATE-RUN.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ii-windows-single-exe
+          path: out/
+          if-no-files-found: error
+
+  installer-smoke:
+    needs: bundle
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ii-windows-single-exe
+          path: installer-test
+      - name: Ensure the Setup WebView2 prerequisite is installed
+        shell: powershell
+        run: |
+          $runtime = @(Get-ChildItem "${env:ProgramFiles(x86)}/Microsoft/EdgeWebView/Application/*/msedgewebview2.exe" -ErrorAction SilentlyContinue)
+          if (-not $runtime.Count) {
+            Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile "$env:RUNNER_TEMP/webview2-setup.exe"
+            $p = Start-Process "$env:RUNNER_TEMP/webview2-setup.exe" -ArgumentList '/silent','/install' -Wait -PassThru
+            Write-Host "WebView2 bootstrap exit: $($p.ExitCode)"
+          }
+          Get-ChildItem "${env:ProgramFiles(x86)}/Microsoft/EdgeWebView/Application/*/msedgewebview2.exe" -ErrorAction Stop | Select-Object FullName
+      - name: Capture finished EXE Install options for source review
+        shell: powershell
+        run: |
+          $exe = Get-ChildItem installer-test -Filter '*-x64-offline-setup.exe' | Select-Object -First 1
+          $version = $exe.Name -replace '^ii-windows-','' -replace '-x64-offline-setup.exe$',''
+          & tools/smoke/Test-InstallerSource.ps1 -Exe $exe.FullName -Version $version -Output (Join-Path $PWD 'installer-source-results')
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: finished-installer-source-validation
+          path: installer-source-results/
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+    needs: [bundle, installer-smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_RUN: ${{ inputs.candidate_run }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ii-windows-single-exe
+          path: installer
+      - name: Publish the requested tested preview
+        working-directory: installer
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, re
+          run = json.load(open('CANDIDATE-RUN.json'))
+          assert str(run['id']) == os.environ['EXPECTED_RUN']
+          assert run['conclusion'] == 'success'
+          assert run['head_branch'] == 'windows-native-end4'
+          files = list(pathlib.Path('.').glob('*-x64-offline-setup.exe'))
+          assert len(files) == 1
+          name = files[0].name
+          match = re.fullmatch(r'ii-windows-([0-9A-Za-z.+-]+)-x64-offline-setup.exe', name)
+          assert match
+          version = match[1]
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f'RELEASE_TAG=v{version}\nEXE={name}\nCANDIDATE_SHA={run.get("packageSourceCommit", run["head_sha"])}\n')
+          pathlib.Path('release-notes.md').write_text(
+              'Windows x64 development preview. Download the offline setup EXE and open it; no separate package or PowerShell command is required. Uses the existing ii installation and settings.\n\n'
+              'Packaging repair: the offline EXE now includes payload.zip.sha256 with the matching payload filename. The extracted EXE checksum is verified before publication. The package ZIP and its checksum are also published for update discovery.\n\n'
+              'The UI repair replaces the clipped wallpaper-owner button strip with a dropdown, bounds Settings pages to the viewport, wraps long switch labels and uses a native popup window on Windows. It reuses the validated native.7 backend binaries unchanged.\n\n'
+              'Adds opt-in Native desktop glass for external wallpaper apps. Only the widget surface becomes a bottom-layer top-level window; the wallpaper stays in its existing desktop host. Rounded card bounds use Windows compositor blur instead of sampling a static image. There is no duplicate wallpaper renderer, screen capture or injection. Prior distance-field text and Windows shortcut-label fixes remain included.\n\n'
+              'In Settings > Background > Windows desktop, select Wallpaper owner > External app and enable Native desktop glass (experimental). Requires Windows 11 and Transparency effects. Lock, game mode or unavailable Windows blur return to embedded translucent cards. Disable the switch to restore embedded mode. Use only the base theme Install.ps1; skip the old shell-overwrite glass/text installers.\n\n'
+              'This is an experimental integration, not a completed Windows port. Native live blur was confirmed in the standalone probe on the user desktop; this integrated shell still needs real-device validation. Liquid-lens texture refraction is not implemented. Check Win+D, application occlusion, widget input, Explorer restart and monitor/DPI transitions. Hosted-runner screenshot and font-folder-lock limitations remain.\n\n'
+              f'Validated candidate: https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{run["id"]} (compiled source {run.get("packageSourceCommit", run["head_sha"])}; validation harness {run["head_sha"]}). The single-EXE payloads were compared byte-for-byte with that candidate.\n', encoding='utf-8')
+          PY
+          sha256sum -c *.exe.sha256
+      - name: Upload the installer assets and publish the preview
+        working-directory: installer
+        run: |
+          draft=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
+          [ "$draft" = true ] || { echo "An existing draft release is required; published releases are immutable."; exit 1; }
+          gh release upload "$RELEASE_TAG" "$EXE" "$EXE.sha256" ii-windows-*.zip ii-windows-*.zip.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --draft=false --prerelease --latest=false --notes-file release-notes.md

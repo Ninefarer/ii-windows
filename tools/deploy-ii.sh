@@ -112,12 +112,12 @@ else
 	echo "warning: no $MICROTEX_DIR/LaTeX.exe - LaTeX rendering in the AI chat will be unavailable" >&2
 fi
 
+"${PYTHON:-python3}" "$IIW/tools/apply-ii-patches.py" "$IIW/ii"
+
 rm -rf "$D/config/ii"
 mkdir -p "$D/config"
-(cd "$IIW/ii" && git ls-files -z --recurse-submodules) | while IFS= read -r -d '' f; do
-	mkdir -p "$D/config/ii/$(dirname "$f")"
-	cp -fp "$IIW/ii/$f" "$D/config/ii/$f"
-done
+"${PYTHON:-python3}" "$IIW/tools/stage-windows-shell.py" "$IIW/ii" "$D/config/ii" --report "$D/SHELL-CONTENTS.json"
+"${PYTHON:-python3}" "$IIW/tools/build-provenance.py" "$D/SOURCE-PROVENANCE.json"
 
 QMLCACHE_GEN="${QMLCACHE_GEN:-$IIW/quickshell/tools/qmlcache-bundle.py}"
 QMLCACHEGEN="${QMLCACHEGEN:-$QT_HOST/libexec/qmlcachegen}"

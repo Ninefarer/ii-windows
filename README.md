@@ -21,6 +21,8 @@
 
 **Illogical Windows** (formerly ii-windows): **26.1.1.0 “Bureaucratic Hamster”** is out: Scrolling tiling, NabyScape style, automatic light/dark mode, calendar events, dock reordering and experimental native ARM64 support (Windows 11 24H2 build 26100.2605+). ii isn't signed yet, so Microsoft Defender may flag it: see the Microsoft Defender steps under Installation.
 
+> **Windows-native end4 development preview:** This branch integrates text rendering policy, desktop wallpaper ownership, static glass, fork update identity and a Windows-only helper package. See [WINDOWS-NATIVE.md](WINDOWS-NATIVE.md) for the audit, build/install instructions, tests and release blockers. Live Wallpaper Engine refraction is not implemented yet.
+
 [Release notes and downloads](https://github.com/nunreasonable/ii-windows/releases/tag/v26.1.1.0)
 
 > [!WARNING]

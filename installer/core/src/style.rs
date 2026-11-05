@@ -4,7 +4,7 @@ use std::io;
 use std::path::Path;
 
 pub const STYLES: [&str; 3] = ["ii", "end4pc", "nabyscape"];
-pub const DEFAULT: &str = "ii";
+pub const DEFAULT: &str = "end4pc";
 pub const CONFIG_FILE: &str = "config.json";
 
 pub fn is_known(style: &str) -> bool {
@@ -110,18 +110,18 @@ mod tests {
 	#[test]
 	fn missing_config_and_default_style_writes_nothing() {
 		let p = tmp("missing-default");
-		assert_eq!(write(&p, "ii").unwrap(), Outcome::Unchanged);
+		assert_eq!(write(&p, DEFAULT).unwrap(), Outcome::Unchanged);
 		assert!(!p.exists());
 		assert_eq!(read(&p), None);
 	}
 
 	#[test]
 	fn missing_config_gets_only_the_style() {
-		let p = tmp("missing-pc");
-		assert_eq!(write(&p, "end4pc").unwrap(), Outcome::Created);
+		let p = tmp("missing-nondefault");
+		assert_eq!(write(&p, "ii").unwrap(), Outcome::Created);
 		let v: Value = serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
-		assert_eq!(v, serde_json::json!({"appearance": {"visualStyle": "end4pc"}}));
-		assert_eq!(read(&p).as_deref(), Some("end4pc"));
+		assert_eq!(v, serde_json::json!({"appearance": {"visualStyle": "ii"}}));
+		assert_eq!(read(&p).as_deref(), Some("ii"));
 	}
 
 	#[test]
@@ -129,7 +129,7 @@ mod tests {
 		let p = tmp("keep");
 		let before = serde_json::json!({
 			"panelFamily": "ii",
-			"appearance": {"extraBackgroundTint": false, "fonts": {"main": "X"}},
+			"appearance": {"visualStyle": "ii", "extraBackgroundTint": false, "fonts": {"main": "X"}},
 			"bar": {"vertical": true, "screenList": ["A", "B"]}
 		});
 		std::fs::write(&p, serde_json::to_string_pretty(&before).unwrap()).unwrap();
@@ -149,16 +149,16 @@ mod tests {
 		assert_eq!(write(&p, "end4pc").unwrap(), Outcome::Unchanged);
 		assert_eq!(std::fs::read_to_string(&p).unwrap(), text);
 		std::fs::write(&p, "{\"bar\": {}}").unwrap();
-		assert_eq!(write(&p, "ii").unwrap(), Outcome::Unchanged);
+		assert_eq!(write(&p, DEFAULT).unwrap(), Outcome::Unchanged);
 		assert_eq!(std::fs::read_to_string(&p).unwrap(), "{\"bar\": {}}");
 	}
 
 	#[test]
 	fn switching_back_to_default_is_written() {
 		let p = tmp("back");
-		std::fs::write(&p, "{\"appearance\": {\"visualStyle\": \"end4pc\"}}").unwrap();
-		assert_eq!(write(&p, "ii").unwrap(), Outcome::Updated);
-		assert_eq!(read(&p).as_deref(), Some("ii"));
+		std::fs::write(&p, "{\"appearance\": {\"visualStyle\": \"ii\"}}").unwrap();
+		assert_eq!(write(&p, DEFAULT).unwrap(), Outcome::Updated);
+		assert_eq!(read(&p).as_deref(), Some(DEFAULT));
 	}
 
 	#[test]

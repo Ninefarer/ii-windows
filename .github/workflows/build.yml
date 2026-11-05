@@ -44,6 +44,12 @@ jobs:
             echo "$name $(git -C "$name" rev-parse HEAD)"
           done < sources.lock
 
+      - name: Apply native backend patches
+        run: python tools/apply-ii-patches.py quickshell --series patches/quickshell
+
+      - name: Apply fork shell patches
+        run: python tools/apply-ii-patches.py ii
+
       - name: Paths
         run: |
           tmp="$(cygpath -m "$RUNNER_TEMP")"
@@ -91,7 +97,7 @@ jobs:
           cmake -S quickshell -B build/qs -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl \
             -DCMAKE_PREFIX_PATH="$QT_WIN" -DCLI11_INCLUDE_DIR="$CLI11_DIR/include" \
-            -DQS_PRODUCT_NAME=ii-windows -DQS_COMPANY_NAME=nunreasonable -DQS_VERSION_FILE="$(cygpath -m "$PWD/VERSION")"
+            -DQS_PRODUCT_NAME=ii-windows -DQS_COMPANY_NAME=Ninefarer -DQS_VERSION_FILE="$(cygpath -m "$PWD/VERSION")"
           cmake --build build/qs
 
       - name: Build the setup
@@ -243,6 +249,9 @@ jobs:
           git -C quickshell checkout -q FETCH_HEAD
           echo "quickshell $(git -C quickshell rev-parse HEAD)"
 
+      - name: Apply native backend patches
+        run: python tools/apply-ii-patches.py quickshell --series patches/quickshell
+
       - name: Paths
         run: |
           tmp="$(cygpath -m "$RUNNER_TEMP")"
@@ -290,7 +299,7 @@ jobs:
           cmake -S quickshell -B build/qs -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl \
             -DCMAKE_PREFIX_PATH="$QT_WIN" -DCLI11_INCLUDE_DIR="$CLI11_DIR/include" \
-            -DQS_PRODUCT_NAME=ii-windows -DQS_COMPANY_NAME=nunreasonable -DQS_VERSION_FILE="$(cygpath -m "$PWD/VERSION")"
+            -DQS_PRODUCT_NAME=ii-windows -DQS_COMPANY_NAME=Ninefarer -DQS_VERSION_FILE="$(cygpath -m "$PWD/VERSION")"
           cmake --build build/qs 2>&1 | tee build/qs-build.log
 
       - name: Check the architecture
@@ -409,6 +418,12 @@ jobs:
             git -C "$name" submodule update -q --init --recursive
             echo "$name $(git -C "$name" rev-parse HEAD)"
           done < sources.lock
+
+      - name: Apply native backend patches
+        run: python tools/apply-ii-patches.py quickshell --series patches/quickshell
+
+      - name: Apply fork shell patches
+        run: python tools/apply-ii-patches.py ii
 
       - name: Paths
         run: |
@@ -550,6 +565,9 @@ jobs:
           git -C ii checkout -q FETCH_HEAD
           git -C ii submodule update -q --init --recursive
 
+      - name: Apply fork shell patches
+        run: python tools/apply-ii-patches.py ii
+
       - uses: actions/download-artifact@v4
         with:
           name: ii-windows-${{ github.ref_name }}-${{ github.run_number }}
@@ -609,6 +627,9 @@ jobs:
           git -C ii fetch -q --depth 1 "$url" "$sha"
           git -C ii checkout -q FETCH_HEAD
           git -C ii submodule update -q --init --recursive
+
+      - name: Apply fork shell patches
+        run: python tools/apply-ii-patches.py ii
 
       - uses: actions/download-artifact@v4
         with:

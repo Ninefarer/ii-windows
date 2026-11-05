@@ -1,0 +1,65 @@
+name: Publish reviewed preview installer
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_run:
+        description: Successful offline installer run whose captured Install options were reviewed
+        required: true
+      tag:
+        description: Existing draft release matching the reviewed package version
+        required: true
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REVIEWED_RUN: ${{ inputs.reviewed_run }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Require successful finished installer checks
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REVIEWED_RUN" > reviewed-run.json
+          python - <<'PY'
+          import json
+          r = json.load(open('reviewed-run.json'))
+          assert r['conclusion'] == 'success' and r['head_branch'] == 'windows-native-end4'
+          assert r['name'] == 'Single EXE preview installer'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.reviewed_run }}
+          name: ii-windows-single-exe
+          path: installer
+      - name: Verify exact reviewed assets and source provenance
+        working-directory: installer
+        run: |
+          sha256sum -c *.sha256
+          python - <<'PY'
+          import hashlib, json, os, pathlib, zipfile
+          tag = os.environ['RELEASE_TAG']
+          version = tag.removeprefix('v')
+          assert list(pathlib.Path('.').glob('*-x64-offline-setup.exe')) == [pathlib.Path(f'ii-windows-{version}-x64-offline-setup.exe')]
+          candidate = json.load(open('CANDIDATE-RUN.json'))
+          assert candidate['conclusion'] == 'success'
+          with zipfile.ZipFile(f'ii-windows-{version}.zip') as z:
+              assert z.read('VERSION').decode().strip() == version
+              p = json.loads(z.read('SOURCE-PROVENANCE.json'))
+              assert p['packagingCommit'] == candidate['packageSourceCommit']
+              assert hashlib.sha256(z.read('ii-windows-setup.exe')).hexdigest() == p['installerUpdate']['sha256']
+          pathlib.Path('notes.md').write_text(
+              'Fixes Setup ignoring an explicitly bundled package when its version differs from Setup. The offline EXE now uses the bundled package; its checksum is included and verified. ZIP and checksum assets are also available for update discovery.\n\n'
+              'Retains the Settings dropdown/layout repair, distance-field text fixes and experimental native desktop glass. Close existing Setup windows before opening this installer. No theme reinstall is needed.\n\n'
+              'For Wallpaper Engine: Settings > Background > Windows desktop > Wallpaper owner > External app, then enable Native desktop glass (experimental). Windows 11 and Transparency effects are required. This remains a development preview, not a completed Windows rewrite.\n\n'
+              f'Validation: 76 installer tests, including explicit package/version mismatch; Settings clicks at 100% and 150%; native glass lifecycle checks; extracted payload checksum verification; and visual review of Install options from the finished EXE. Reviewed installer: https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["REVIEWED_RUN"]}. Package candidate: https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{candidate["id"]}.\n', encoding='utf-8')
+          PY
+      - name: Publish the exact reviewed installer
+        working-directory: installer
+        run: |
+          draft=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
+          [ "$draft" = true ] || { echo 'A draft release is required'; exit 1; }
+          gh release upload "$RELEASE_TAG" *.exe *.exe.sha256 *.zip *.zip.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false --notes-file notes.md

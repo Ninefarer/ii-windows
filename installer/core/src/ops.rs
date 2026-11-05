@@ -139,7 +139,8 @@ pub fn resolve_source(
 			let name = p.file_name().unwrap_or_default().to_string_lossy();
 			return Err(wrong_arch_msg(&name, info.arch, native));
 		}
-		let use_it = want_version.is_none_or(|v| version::same(v, &info.version));
+		// An explicit --package is the requested source, even when Setup is older.
+		let use_it = explicit || want_version.is_none_or(|v| version::same(v, &info.version));
 		if use_it {
 			if !explicit && want_version.is_none() {
 				if let Ok(release) = release::latest(wanted_arch) {
@@ -2587,4 +2588,29 @@ pub fn schedule_cleanup(scratch: &Path, extra_dirs: &[PathBuf]) {
 	let check = format!("if not exist \"{}\" exit", scratch.display());
 	let line = format!("for /l %i in (1,1,10) do (ping -n 3 127.0.0.1 >nul & {body} & {check})");
 	let _ = win::spawn_cmd_raw(&line);
+}
+
+#[cfg(test)]
+mod offline_source_tests {
+    use super::*;
+    #[test]
+    fn explicit_package_wins_over_setup_version() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join(format!("iiw-explicit-source-{}.zip", std::process::id()));
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+        for (name, data) in [("qsw.exe", "MZ"), ("qs.exe", "MZ"), ("config/ii/shell.qml", "import QtQuick"), ("VERSION", "26.1.1.1-native.7.ui.3")] {
+            zip.start_file(name, zip::write::SimpleFileOptions::default()).unwrap();
+            zip.write_all(data.as_bytes()).unwrap();
+        }
+        zip.finish().unwrap();
+        let result = resolve_source(Some(&path), true, Some("26.1.1.1-native.7"), Arch::X64).unwrap();
+        match result {
+            Source::Offline { version, explicit, .. } => {
+                assert_eq!(version, "26.1.1.1-native.7.ui.3");
+                assert!(explicit);
+            }
+            _ => panic!("explicit offline package switched to GitHub"),
+        }
+        std::fs::remove_file(path).unwrap();
+    }
 }

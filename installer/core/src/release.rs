@@ -7,8 +7,8 @@ use std::time::Duration;
 use crate::arch::Arch;
 use crate::version;
 
-pub const REPO: &str = "nunreasonable/ii-windows";
-pub const REPO_URL: &str = "https://github.com/nunreasonable/ii-windows";
+pub const REPO: &str = "Ninefarer/ii-windows";
+pub const REPO_URL: &str = "https://github.com/Ninefarer/ii-windows";
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ReleaseInfo {

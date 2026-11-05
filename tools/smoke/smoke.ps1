@@ -204,6 +204,7 @@ Remove-Item -Force $clip -ErrorAction SilentlyContinue
 $log = ShellLog
 $errors = LogErrors $log
 Check 'no errors after the second start' ($errors.Count -eq 0) "$($errors.Count) lines"
+$errors | Select-Object -Unique -First 5 | ForEach-Object { $results.Add('      ' + $_.Substring([Math]::Min(24, $_.Length))) }
 Check 'shell alive at the end' (-not $shell.HasExited)
 Remove-Item -Recurse -Force (Join-Path $Root 'inherit') -ErrorAction SilentlyContinue
 

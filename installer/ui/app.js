@@ -280,7 +280,7 @@
 			const on = (c === "stable") === S.stable;
 			return `<button type="button" class="method-opt${on ? " selected" : ""}" data-channel="${c}" role="radio" aria-checked="${on}">
 				<span class="method-dot"></span>
-				<span class="method-text"><span class="method-name">${esc(t(`ch_${c}`, { v: info.setup_version }))}</span><span class="method-sub">${esc(t(`ch_${c}_desc`))}</span></span>
+				<span class="method-text"><span class="method-name">${esc(t(`ch_${c}`, { v: info.offline?.version || info.setup_version }))}</span><span class="method-sub">${esc(t(`ch_${c}_desc`))}</span></span>
 			</button>`;
 		}).join("");
 		return `<div class="card"><div class="card-title">${esc(t("card_channel"))}</div><div class="method-group channel-group" role="radiogroup">${items}</div></div>`;

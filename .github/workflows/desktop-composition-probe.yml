@@ -1,0 +1,47 @@
+name: Desktop composition probe
+on:
+  push:
+    branches: [windows-native-end4]
+    paths: [probes/desktop-composition/**, .github/workflows/desktop-composition-probe.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Compile standalone native Windows probe
+        shell: cmd
+        run: >-
+          cl /nologo /std:c++20 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE
+          probes\desktop-composition\main.cpp
+          /Fe:ii-desktop-glass-probe.exe
+          /link /SUBSYSTEM:WINDOWS windowsapp.lib user32.lib gdi32.lib shell32.lib ole32.lib dwmapi.lib CoreMessaging.lib
+      - name: Exercise window creation and cleanup without Explorer or Wallpaper Engine
+        shell: powershell
+        run: |
+          $log = Join-Path $PWD 'probe-selftest.txt'
+          $p = Start-Process ./ii-desktop-glass-probe.exe -ArgumentList @('--self-test', '--log', ('"' + $log + '"')) -PassThru
+          if (-not $p.WaitForExit(30000)) { $p.Kill(); throw 'Probe lifecycle self-test timed out' }
+          $p.Refresh()
+          Get-Content -LiteralPath $log -Encoding UTF8
+          if ($p.ExitCode -ne 0 -or (Get-Content -LiteralPath $log -Raw -Encoding UTF8) -notmatch 'SELFTEST PASS') { throw 'Probe lifecycle test failed' }
+      - name: Checksum and usage
+        shell: powershell
+        run: |
+          $hash = (Get-FileHash ./ii-desktop-glass-probe.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  ii-desktop-glass-probe.exe" | Set-Content ./ii-desktop-glass-probe.exe.sha256 -Encoding ASCII
+          Copy-Item probes/desktop-composition/README.md ./PROBE-README.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-glass-probe
+          path: |
+            ii-desktop-glass-probe.exe
+            ii-desktop-glass-probe.exe.sha256
+            probe-selftest.txt
+            PROBE-README.md

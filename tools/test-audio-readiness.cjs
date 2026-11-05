@@ -1,0 +1,54 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const source = fs.readFileSync(path.join(process.argv[2], 'services/Audio.qml'), 'utf8');
+function method(name) {
+    const first = source.indexOf('function ' + name + '(');
+    assert(first >= 0);
+    const start = source.indexOf('{', first);
+    let depth = 0;
+    for (let i = start; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        if (source[i] === '}' && --depth === 0) return '(' + source.slice(first, i + 1) + ')';
+    }
+    throw new Error('Missing audio method body');
+}
+const root = {sink: null, source: null, outputAvailable: false, inputAvailable: false, hardMaxValue: 2};
+Object.defineProperty(root, 'value', {get: () => root.sink?.audio?.volume ?? 0});
+const platform = {isWindows: true};
+const context = vm.createContext({root, Platform: platform});
+for (const name of ['setVolume','setMicVolume','toggleMute','toggleMicMute','incrementVolume','decrementVolume']) root[name] = vm.runInContext(method(name), context);
+for (const name of ['setVolume','setMicVolume','toggleMute','toggleMicMute','incrementVolume','decrementVolume']) assert.equal(root[name](0.7), false, name + ' without a device');
+root.sink = {audio: {volume: 0.5, muted: true}};
+assert.equal(root.setVolume(0.7), false, 'enumerated but not ready');
+root.outputAvailable = true;
+assert.equal(root.setVolume(0.7, true), true);
+assert.equal(root.sink.audio.volume, 0.7);
+assert.equal(root.sink.audio.muted, false);
+root.setVolume(2);
+assert.equal(root.sink.audio.volume, 1, 'Windows endpoint bound');
+assert.equal(root.setVolume(NaN), false);
+assert.equal(root.sink.audio.volume, 1);
+root.setVolume(-1);
+assert.equal(root.sink.audio.volume, 0);
+root.incrementVolume();
+assert.equal(root.sink.audio.volume, 0.01);
+root.decrementVolume();
+assert.equal(root.sink.audio.volume, 0);
+root.source = {audio: {volume: 0.4, muted: false}};
+root.inputAvailable = true;
+root.setMicVolume(0.6);
+assert.equal(root.source.audio.volume, 0.6);
+root.toggleMicMute();
+assert.equal(root.source.audio.muted, true);
+root.outputAvailable = false;
+root.sink = null;
+assert.equal(root.incrementVolume(), false, 'unplug during interaction');
+assert.equal(root.toggleMute(), false);
+platform.isWindows = false;
+root.outputAvailable = true;
+root.sink = {audio: {volume: 1, muted: false}};
+root.setVolume(1.5);
+assert.equal(root.sink.audio.volume, 1.5, 'Linux amplification remains available');
+console.log('Audio startup, ready transition, volume bounds, microphone and disconnect behavior passed');

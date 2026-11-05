@@ -1,0 +1,313 @@
+name: Windows native candidate
+'on':
+  workflow_dispatch: {}
+  push:
+    branches:
+    - windows-native-end4
+    paths:
+    - sources.lock
+    - VERSION
+    - RELEASE_NAME
+    - patches/**
+    - tools/**
+    - installer/**
+    - .github/workflows/native-candidate.yml
+permissions:
+  contents: read
+jobs:
+  policy:
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Check out the locked shell
+      run: 'git config --global core.autocrlf false
+
+        read -r name url sha < <(grep ''^ii '' sources.lock)
+
+        git init -q ii
+
+        git -C ii fetch -q --depth 1 "$url" "$sha"
+
+        git -C ii checkout -q FETCH_HEAD
+
+        git -C ii submodule update -q --init --recursive
+
+        '
+    - name: Test patch application and packaging inputs
+      run: python tools/test-ii-patches.py ii
+    - name: Test native policies and Windows package contents
+      run: 'python tools/apply-ii-patches.py ii
+
+        python tools/test-windows-policy.py ii
+
+        '
+    - name: Parse the native glass lifecycle harness
+      shell: powershell
+      run: |
+        $tokens = $null; $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'tools/smoke/Test-NativeGlass.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+        if ($errors.Count) { $errors | Format-List; throw 'Invalid native glass test script' }
+    - name: Check out and patch the native backend
+      run: 'read -r name url sha < <(grep ''^quickshell '' sources.lock)
+
+        git init -q quickshell
+
+        git -C quickshell fetch -q --depth 1 "$url" "$sha"
+
+        git -C quickshell checkout -q FETCH_HEAD
+
+        python tools/apply-ii-patches.py quickshell --series patches/quickshell
+
+        python tools/test-native-patches.py quickshell
+
+        '
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+    - name: Test native queued wallpaper ownership
+      shell: powershell
+      run: '$test = Join-Path $env:RUNNER_TEMP ''wallpaper-policy-test.exe''
+
+        & cl.exe /nologo /std:c++20 /EHsc /W4 /WX /Iquickshell/src/windows tools/wallpaper-policy-test.cpp ("/Fe" + $test)
+
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        & $test
+
+        exit $LASTEXITCODE
+
+        '
+  build:
+    name: Build x64
+    runs-on: windows-2025
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: bash
+    env:
+      QT_VERSION: 6.11.2
+      RUST_VERSION: 1.97.1
+      AQTINSTALL_COMMIT: 076e1659807d0b362a3ed684d54c2e9c775eb9c7
+      FONTTOOLS_VERSION: 4.67.0
+      MATUGEN_VERSION: 4.1.0
+      CLI11_TAG: v2.5.0
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: lld-link
+    steps:
+    - name: Keep line endings as committed
+      run: 'git config --global core.autocrlf false
+
+        git config --global core.longpaths true
+
+        '
+    - uses: actions/checkout@v4
+    - name: Check out quickshell and ii at the locked commits
+      run: "while read -r name url sha; do\n  [ -z \"$name\" ] && continue\n  git init -q \"$name\"\n  git -C \"$name\" fetch -q --depth 1 \"\
+        $url\" \"$sha\"\n  git -C \"$name\" checkout -q FETCH_HEAD\n  git -C \"$name\" submodule update -q --init --recursive\n  echo \"$name\
+        \ $(git -C \"$name\" rev-parse HEAD)\"\ndone < sources.lock\n"
+    - name: Apply native backend patches
+      run: python tools/apply-ii-patches.py quickshell --series patches/quickshell
+    - name: Apply fork shell patches
+      run: python tools/apply-ii-patches.py ii
+    - name: Paths
+      run: "tmp=\"$(cygpath -m \"$RUNNER_TEMP\")\"\n{\n  echo \"QT_ROOT=$tmp/qt\"\n  echo \"QT_WIN=$tmp/qt/$QT_VERSION/msvc2022_64\"\n  echo \"\
+        CLI11_DIR=$tmp/cli11\"\n  echo \"PYTHON=python\"\n} >> \"$GITHUB_ENV\"\n"
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Tools
+      run: 'python -m pip install --quiet "aqtinstall @ git+https://github.com/miurahr/aqtinstall@$AQTINSTALL_COMMIT" "fonttools==$FONTTOOLS_VERSION"
+        ninja
+
+        rustup toolchain install "$RUST_VERSION" --profile minimal --target x86_64-pc-windows-msvc
+
+        rustup default "$RUST_VERSION"
+
+        clang-cl --version
+
+        cmake --version
+
+        ninja --version
+
+        cargo --version
+
+        '
+    - name: Cache Qt
+      id: qt-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/qt
+        key: qt-${{ env.QT_VERSION }}-msvc2022_64-qt5compat-qtimageformats-qtpositioning-qtshadertools
+    - name: Install Qt
+      if: steps.qt-cache.outputs.cache-hit != 'true'
+      run: aqt install-qt windows desktop "$QT_VERSION" win64_msvc2022_64 -m qt5compat qtimageformats qtpositioning qtshadertools -O "$QT_ROOT"
+    - name: CLI11
+      run: git clone -q --depth 1 --branch "$CLI11_TAG" https://github.com/CLIUtils/CLI11.git "$CLI11_DIR"
+    - name: Build quickshell
+      run: "cmake -S quickshell -B build/qs -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \\\n  -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl\
+        \ \\\n  -DCMAKE_PREFIX_PATH=\"$QT_WIN\" -DCLI11_INCLUDE_DIR=\"$CLI11_DIR/include\" \\\n  -DQS_PRODUCT_NAME=ii-windows -DQS_COMPANY_NAME=Ninefarer\
+        \ -DQS_VERSION_FILE=\"$(cygpath -m \"$PWD/VERSION\")\"\ncmake --build build/qs\n"
+    - name: Build the setup
+      run: cd installer && cargo build --release --locked --target x86_64-pc-windows-msvc -p ii-windows-setup
+    - name: Build matugen
+      run: cargo install matugen --version "$MATUGEN_VERSION" --locked --root build/matugen
+    - name: Build SongRec
+      run: NATIVE=1 tools/songrec/build.sh
+    - name: Build MicroTeX
+      run: NATIVE=1 tools/microtex/build.sh
+    - name: Visual C++ runtime
+      run: "crt=\"$(ls -d \"$(cygpath -u \"$VCToolsRedistDir\")\"/x64/Microsoft.VC14*.CRT | tail -n1)\"\necho \"runtime from $crt\"\nmkdir -p\
+        \ build/vcredist\nfor f in msvcp140.dll msvcp140_1.dll msvcp140_2.dll msvcp140_atomic_wait.dll vcruntime140.dll vcruntime140_1.dll; do\n\
+        \  cp -f \"$crt/$f\" build/vcredist/\ndone\n"
+    - name: Package
+      env:
+        FONTTOOLS: python -m fontTools
+        MATUGEN_EXE: build/matugen/bin/matugen.exe
+        VCREDIST_DIR: build/vcredist
+        SKIP_SETUP_BUILD: '1'
+      run: 'export QMLCACHEGEN="$QT_WIN/bin/qmlcachegen.exe"
+
+        tools/deploy-ii.sh
+
+        tools/release.sh
+
+        (cd dist/release && sha256sum ii-windows-setup.exe ii-windows-*.zip)
+
+        '
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ii-windows-${{ github.ref_name }}-${{ github.run_number }}
+        path: dist/release/
+        if-no-files-found: error
+    needs:
+    - policy
+  setup-tests:
+    name: Setup tests
+    runs-on: windows-2025
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUST_VERSION: 1.97.1
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: lld-link
+    steps:
+    - name: Keep line endings as committed
+      run: 'git config --global core.autocrlf false
+
+        git config --global core.longpaths true
+
+        '
+    - uses: actions/checkout@v4
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Tools
+      run: 'rustup toolchain install "$RUST_VERSION" --profile minimal --target x86_64-pc-windows-msvc
+
+        rustup default "$RUST_VERSION"
+
+        cargo --version
+
+        '
+    - name: Build the setup's core tests
+      run: "mkdir -p build/setup-tests\n(cd installer && cargo test --locked --target x86_64-pc-windows-msvc -p iiw-setup-core --no-run --message-format=json)\
+        \ > build/setup-tests.json\npython - build/setup-tests.json build/setup-tests/iiw-setup-core-tests.exe <<'PY'\nimport json, shutil, sys\n\
+        found = []\nfor line in open(sys.argv[1], encoding=\"utf-8\"):\n    try:\n        m = json.loads(line)\n    except ValueError:\n     \
+        \   continue\n    if m.get(\"reason\") == \"compiler-artifact\" and m.get(\"executable\") and \"lib\" in m[\"target\"][\"kind\"]:\n  \
+        \      found.append(m[\"executable\"])\nprint(found)\nif len(found) != 1:\n    sys.exit(1)\nshutil.copy(found[0], sys.argv[2])\nPY\n"
+    - name: Check the tests are x64
+      run: "python - build/setup-tests/iiw-setup-core-tests.exe <<'PY'\nimport struct, sys\nnames = {0x8664: \"x64\", 0xAA64: \"arm64\"}\nbad\
+        \ = False\nfor path in sys.argv[1:]:\n    data = open(path, \"rb\").read(4096)\n    machine = struct.unpack_from(\"<H\", data, struct.unpack_from(\"\
+        <I\", data, 0x3C)[0] + 4)[0]\n    print(path, names.get(machine, hex(machine)))\n    bad |= machine != 0x8664\nsys.exit(1 if bad else\
+        \ 0)\nPY\n"
+    - name: Setup tests on x64
+      env:
+        IIW_EXPECT_NATIVE_ARCH: x64
+      run: 'build/setup-tests/iiw-setup-core-tests.exe arch:: release:: package:: manifest:: version:: appinstaller::
+
+        '
+    - uses: actions/upload-artifact@v4
+      with:
+        name: setup-tests-${{ github.run_number }}
+        path: build/setup-tests/
+        if-no-files-found: error
+  smoke:
+    name: Smoke native x64
+    needs:
+    - build
+    - setup-tests
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Keep line endings as committed
+      run: 'git config --global core.autocrlf false
+
+        git config --global core.longpaths true
+
+        '
+    - uses: actions/checkout@v4
+    - name: Check out ii at the locked commit
+      run: 'read -r name url sha < <(grep ''^ii '' sources.lock)
+
+        git init -q ii
+
+        git -C ii fetch -q --depth 1 "$url" "$sha"
+
+        git -C ii checkout -q FETCH_HEAD
+
+        git -C ii submodule update -q --init --recursive
+
+        '
+    - name: Apply fork shell patches
+      run: python tools/apply-ii-patches.py ii
+    - uses: actions/download-artifact@v4
+      with:
+        name: ii-windows-${{ github.ref_name }}-${{ github.run_number }}
+        path: pkg
+    - uses: actions/download-artifact@v4
+      with:
+        name: setup-tests-${{ github.run_number }}
+        path: setup
+    - name: Setup picks the x64 package on this runner
+      run: "zip=\"$(ls pkg/ii-windows-*.zip)\"\necho \"package $zip\"\nIIW_EXPECT_NATIVE_ARCH=x64 IIW_EXPECT_PACKAGE_ARCH=x64 IIW_TEST_PACKAGE=\"\
+        $(cygpath -w \"$PWD/$zip\")\" \\\n  setup/iiw-setup-core-tests.exe arch:: package::tests::release_package_on_this_runner\n"
+    - name: List every QML file for the compile check
+      run: python tools/qml-compile-check.py ii > pkg/compilecheck.qml
+    - name: Smoke test
+      shell: powershell
+      run: '$zip = Get-ChildItem pkg -Filter ''ii-windows-*.zip'' | Where-Object Name -notlike ''*.sha256'' | Select-Object -First 1
+
+        & tools\smoke\ci-smoke.ps1 -Package $zip.FullName -Setup pkg\ii-windows-setup.exe -CompileCheck pkg\compilecheck.qml -Work "$env:RUNNER_TEMP\iiw"
+        -Output "$env:RUNNER_TEMP\iiw\smoke.txt"
+
+        exit $LASTEXITCODE
+
+        '
+    - name: Test native glass topology, backdrop lifetime and focus flags
+      shell: powershell
+      run: '& tools\smoke\Test-NativeGlass.ps1 -InstallPath "$env:LOCALAPPDATA\ii-windows" -ShellPath "$env:LOCALAPPDATA\quickshell\ii"'
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: smoke-x64-windows-2025-${{ github.run_number }}
+        path: '${{ runner.temp }}/iiw/smoke.txt
+
+          ${{ runner.temp }}/iiw/logs/
+
+          '
+        if-no-files-found: ignore

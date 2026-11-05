@@ -1,0 +1,1213 @@
+{
+  "qmlFileCount": 837,
+  "filesWithWindowsBranches": 221,
+  "linuxCommandReferences": [
+    {
+      "file": "killDialog.qml",
+      "line": 94,
+      "executable": "killall",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "killDialog.qml",
+      "line": 105,
+      "executable": "killall",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/Directories.qml",
+      "line": 133,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/Directories.qml",
+      "line": 134,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/Directories.qml",
+      "line": 135,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/Directories.qml",
+      "line": 136,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/functions/Session.qml",
+      "line": 21,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/functions/Session.qml",
+      "line": 29,
+      "executable": "loginctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/functions/Session.qml",
+      "line": 37,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/functions/Session.qml",
+      "line": 54,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/functions/Session.qml",
+      "line": 62,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/functions/Session.qml",
+      "line": 71,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/functions/Session.qml",
+      "line": 80,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/functions/Session.qml",
+      "line": 89,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/models/gCloud/GCloudVision.qml",
+      "line": 31,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/models/hyprland/HyprlandConfigOption.qml",
+      "line": 43,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/models/quickToggles/CloudflareWarpToggle.qml",
+      "line": 83,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/models/quickToggles/EasyEffectsToggle.qml",
+      "line": 25,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/panels/lock/LockContext.qml",
+      "line": 83,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/panels/lock/LockScreen.qml",
+      "line": 43,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/panels/lock/LockScreen.qml",
+      "line": 102,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/utils/ImageDownloaderProcess.qml",
+      "line": 42,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/utils/ScreenshotAction.qml",
+      "line": 316,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/utils/ScreenshotAction.qml",
+      "line": 330,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/utils/ScreenshotAction.qml",
+      "line": 333,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/utils/ScreenshotAction.qml",
+      "line": 336,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/utils/ScreenshotAction.qml",
+      "line": 339,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/utils/ScreenshotAction.qml",
+      "line": 342,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/utils/TempScreenshotProcess.qml",
+      "line": 19,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/widgets/AppContextMenu.qml",
+      "line": 50,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/widgets/CliphistImage.qml",
+      "line": 60,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/widgets/CliphistImage.qml",
+      "line": 73,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/widgets/Favicon.qml",
+      "line": 29,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/common/widgets/ThumbnailImage.qml",
+      "line": 68,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/background/widgets/media/MediaWidget.qml",
+      "line": 141,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/background/widgets/visualizer/VisualizerWidget.qml",
+      "line": 91,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/dock/DockMedia.qml",
+      "line": 87,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerAutoService.qml",
+      "line": 90,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerAutoService.qml",
+      "line": 199,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerAutoService.qml",
+      "line": 219,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerAutoService.qml",
+      "line": 234,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerAutoService.qml",
+      "line": 249,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerAutoService.qml",
+      "line": 269,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerPopup.qml",
+      "line": 84,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 142,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 153,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 163,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 171,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 178,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 201,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 227,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 261,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 272,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 291,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 323,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 334,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 346,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 398,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 406,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 431,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 441,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 452,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 473,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/equalizer/EqualizerView.qml",
+      "line": 484,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/lock/Lock.qml",
+      "line": 31,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/lock/Lock.qml",
+      "line": 60,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/mediaControls/PlayerControl.qml",
+      "line": 103,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/nabyIsland/NabyIslandArtColor.qml",
+      "line": 58,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/overlay/fpsLimiter/FpsLimiterContent.qml",
+      "line": 50,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/overlay/recorder/Recorder.qml",
+      "line": 45,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/regionSelector/RegionSelection.qml",
+      "line": 253,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarLeft/AiChat.qml",
+      "line": 256,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarLeft/SidebarLeft.qml",
+      "line": 29,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarLeft/SidebarLeft.qml",
+      "line": 38,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarLeft/SidebarLeft.qml",
+      "line": 46,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarLeft/SidebarPlayerControl.qml",
+      "line": 92,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarLeft/Translator.qml",
+      "line": 90,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarLeft/aiChat/MessageCodeBlock.qml",
+      "line": 97,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarLeft/anime/BooruImage.qml",
+      "line": 183,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/SidebarRightContent.qml",
+      "line": 362,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/SidebarRightContent.qml",
+      "line": 753,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/bluetoothDevices/BluetoothDialog.qml",
+      "line": 63,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/media/SidebarMediaCard.qml",
+      "line": 84,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/quickToggles/classicStyle/BluetoothToggle.qml",
+      "line": 22,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/quickToggles/classicStyle/CloudflareWarp.qml",
+      "line": 94,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/quickToggles/classicStyle/EasyEffectsToggle.qml",
+      "line": 24,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/quickToggles/classicStyle/GameMode.qml",
+      "line": 19,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/quickToggles/classicStyle/GameMode.qml",
+      "line": 21,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/quickToggles/classicStyle/GameMode.qml",
+      "line": 27,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/quickToggles/classicStyle/NetworkToggle.qml",
+      "line": 20,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/volumeMixer/VolumeDialog.qml",
+      "line": 37,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/sidebarRight/wifiNetworks/WifiDialog.qml",
+      "line": 73,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/spotlight/Spotlight.qml",
+      "line": 198,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/spotlight/Spotlight.qml",
+      "line": 310,
+      "executable": "sh",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/ii/spotlight/Spotlight.qml",
+      "line": 376,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/settings/GeneralConfig.qml",
+      "line": 699,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/settings/GeneralConfig.qml",
+      "line": 701,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/settingsPc/dashboard/DashboardMediaPage.qml",
+      "line": 69,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/settingsPc/pages/GeneralConfig.qml",
+      "line": 222,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/settingsPc/pages/GeneralConfig.qml",
+      "line": 224,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/waffle/actionCenter/bluetooth/BluetoothControl.qml",
+      "line": 110,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/waffle/actionCenter/volumeControl/VolumeControl.qml",
+      "line": 69,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/waffle/actionCenter/wifi/WifiControl.qml",
+      "line": 127,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/waffle/bar/StartButton.qml",
+      "line": 45,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/waffle/bar/UpdatesButton.qml",
+      "line": 20,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/waffle/screenSnip/WRegionSelectionPanel.qml",
+      "line": 356,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/waffle/startMenu/searchPage/TagStrip.qml",
+      "line": 79,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "modules/waffle/startMenu/startPage/StartUserButton.qml",
+      "line": 132,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Ai.qml",
+      "line": 398,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Ai.qml",
+      "line": 444,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Ai.qml",
+      "line": 740,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Ai.qml",
+      "line": 1032,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Brightness.qml",
+      "line": 191,
+      "executable": "sh",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Brightness.qml",
+      "line": 255,
+      "executable": "brightnessctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Brightness.qml",
+      "line": 334,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Cliphist.qml",
+      "line": 119,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Cliphist.qml",
+      "line": 122,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Cliphist.qml",
+      "line": 132,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Cliphist.qml",
+      "line": 135,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Cliphist.qml",
+      "line": 172,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Cliphist.qml",
+      "line": 178,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/ConflictKiller.qml",
+      "line": 27,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/ConflictKiller.qml",
+      "line": 36,
+      "executable": "killall",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/ConflictKiller.qml",
+      "line": 40,
+      "executable": "killall",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/EasyEffects.qml",
+      "line": 29,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/EasyEffects.qml",
+      "line": 35,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/EasyEffects.qml",
+      "line": 49,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/EasyEffects.qml",
+      "line": 58,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/FirstRunExperience.qml",
+      "line": 34,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/FirstRunExperience.qml",
+      "line": 51,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandConfig.qml",
+      "line": 24,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandConfig.qml",
+      "line": 35,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandConfig.qml",
+      "line": 42,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandConfig.qml",
+      "line": 53,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandData.qml",
+      "line": 147,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandData.qml",
+      "line": 165,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandData.qml",
+      "line": 176,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandData.qml",
+      "line": 187,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandData.qml",
+      "line": 207,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandKeybinds.qml",
+      "line": 45,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/HyprlandXkb.qml",
+      "line": 80,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Hyprsunset.qml",
+      "line": 88,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Hyprsunset.qml",
+      "line": 115,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Hyprsunset.qml",
+      "line": 125,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Hyprsunset.qml",
+      "line": 141,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Hyprsunset.qml",
+      "line": 152,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Hyprsunset.qml",
+      "line": 190,
+      "executable": "hyprctl",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/LatexRenderer.qml",
+      "line": 105,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/LauncherSearch.qml",
+      "line": 382,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/LauncherSearch.qml",
+      "line": 398,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/LauncherSearch.qml",
+      "line": 422,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 90,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 130,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 139,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 147,
+      "executable": "xdg-open",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 163,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 214,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 234,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 243,
+      "executable": "sh",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 292,
+      "executable": "sh",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 304,
+      "executable": "sh",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 314,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Network.qml",
+      "line": 330,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/PresetThumbs.qml",
+      "line": 100,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/PresetThumbs.qml",
+      "line": 140,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Presets.qml",
+      "line": 505,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Presets.qml",
+      "line": 515,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Presets.qml",
+      "line": 790,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Presets.qml",
+      "line": 837,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Presets.qml",
+      "line": 864,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Presets.qml",
+      "line": 907,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Presets.qml",
+      "line": 1414,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/PresetsOnline.qml",
+      "line": 87,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/PresetsOnline.qml",
+      "line": 185,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/PresetsOnline.qml",
+      "line": 385,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/PresetsOnline.qml",
+      "line": 405,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/PresetsOnline.qml",
+      "line": 546,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/RandomWallpaper.qml",
+      "line": 29,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/ResourceUsage.qml",
+      "line": 201,
+      "executable": "sh",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/ResourceUsage.qml",
+      "line": 227,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/SessionWarnings.qml",
+      "line": 30,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/SessionWarnings.qml",
+      "line": 38,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/SystemInfo.qml",
+      "line": 134,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Updates.qml",
+      "line": 72,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Vpn.qml",
+      "line": 71,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Vpn.qml",
+      "line": 86,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Vpn.qml",
+      "line": 94,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Vpn.qml",
+      "line": 102,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Vpn.qml",
+      "line": 113,
+      "executable": "nmcli",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Vpn.qml",
+      "line": 144,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Vpn.qml",
+      "line": 220,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Wallpapers.qml",
+      "line": 378,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Wallpapers.qml",
+      "line": 386,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Wallpapers.qml",
+      "line": 394,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Weather.qml",
+      "line": 142,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Webapps.qml",
+      "line": 40,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Webapps.qml",
+      "line": 49,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Webapps.qml",
+      "line": 58,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/Webapps.qml",
+      "line": 83,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "services/WorldClock.qml",
+      "line": 133,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    },
+    {
+      "file": "welcome.qml",
+      "line": 126,
+      "executable": "bash",
+      "requiresReachabilityReview": true
+    }
+  ],
+  "note": "A reference is not evidence it executes on Windows. This inventory is for review; guarded Linux branches are retained in shared source."
+}
