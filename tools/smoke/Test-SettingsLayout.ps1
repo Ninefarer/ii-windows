@@ -22,6 +22,8 @@ $oldState = $env:IIW_UI_TEST_STATE
 $oldImages = $env:IIW_UI_TEST_IMAGES
 $p = $null
 try {
+    New-Item -ItemType Directory -Force (Split-Path $config) | Out-Null
+    if (-not (Test-Path $config)) { [IO.File]::WriteAllText($config, '{}', (New-Object Text.UTF8Encoding($false))) }
     Copy-Item (Join-Path $PSScriptRoot 'settings-layout.qml') $qml -Force
     foreach ($scale in '1', '1.5') {
         $folder = Join-Path $Output ('scale-' + $scale)
