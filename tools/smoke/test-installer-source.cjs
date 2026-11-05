@@ -5,12 +5,16 @@ const fs = require('node:fs');
 const [exe, expectedVersion, output] = process.argv.slice(2);
 const delay = ms => new Promise(r => setTimeout(r, ms));
 const child = spawn(exe, [], {env: {...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222'}, stdio: 'inherit'});
+child.on("exit", code => console.log("Offline wrapper exit code:", code));
 let socket;
 (async () => {
   let page;
   for (let i = 0; i < 120 && !page; i++) {
     try { page = (await (await fetch('http://127.0.0.1:9222/json')).json()).find(p => p.type === 'page' && p.webSocketDebuggerUrl); } catch {}
     if (!page) await delay(500);
+  }
+  if (!page) {
+    console.log(spawnSync('powershell.exe', ['-NoProfile','-Command', "Get-Process | Where-Object { $_.ProcessName -match 'ii-windows|msedgewebview' } | Select-Object ProcessName,Id,MainWindowTitle | ConvertTo-Json"], {encoding:'utf8'}).stdout);
   }
   assert(page, 'Finished EXE did not open its Setup WebView');
   socket = new WebSocket(page.webSocketDebuggerUrl);

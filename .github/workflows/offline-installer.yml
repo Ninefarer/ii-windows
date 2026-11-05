@@ -106,6 +106,16 @@ jobs:
         with:
           name: ii-windows-single-exe
           path: installer-test
+      - name: Ensure the Setup WebView2 prerequisite is installed
+        shell: powershell
+        run: |
+          $runtime = @(Get-ChildItem "${env:ProgramFiles(x86)}/Microsoft/EdgeWebView/Application/*/msedgewebview2.exe" -ErrorAction SilentlyContinue)
+          if (-not $runtime.Count) {
+            Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile "$env:RUNNER_TEMP/webview2-setup.exe"
+            $p = Start-Process "$env:RUNNER_TEMP/webview2-setup.exe" -ArgumentList '/silent','/install' -Wait -PassThru
+            Write-Host "WebView2 bootstrap exit: $($p.ExitCode)"
+          }
+          Get-ChildItem "${env:ProgramFiles(x86)}/Microsoft/EdgeWebView/Application/*/msedgewebview2.exe" -ErrorAction Stop | Select-Object FullName
       - name: Open finished EXE and verify actual Setup source selection
         shell: powershell
         run: |
