@@ -93,9 +93,35 @@ jobs:
           path: out/
           if-no-files-found: error
 
+  installer-smoke:
+    needs: bundle
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: ii-windows-single-exe
+          path: installer-test
+      - name: Open finished EXE and verify actual Setup source selection
+        shell: powershell
+        run: |
+          $exe = Get-ChildItem installer-test -Filter '*-x64-offline-setup.exe' | Select-Object -First 1
+          $version = $exe.Name -replace '^ii-windows-','' -replace '-x64-offline-setup.exe$',''
+          node tools/smoke/test-installer-source.cjs $exe.FullName $version installer-test/source-selection.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: finished-installer-source-validation
+          path: installer-test/source-selection.json
+
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.publish_release
-    needs: bundle
+    needs: [bundle, installer-smoke]
     runs-on: ubuntu-latest
     permissions:
       contents: write
