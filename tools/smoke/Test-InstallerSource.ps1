@@ -10,6 +10,18 @@ public static class InstallerMouse {
  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr w);
  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
  [DllImport("user32.dll")] public static extern void mouse_event(uint f,uint x,uint y,uint d,UIntPtr e);
+ delegate bool Callback(IntPtr w,IntPtr p);
+ [DllImport("user32.dll")] static extern bool EnumWindows(Callback callback,IntPtr p);
+ [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr w);
+ [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr w,out uint pid);
+ public static IntPtr Find(uint process) {
+  IntPtr found=IntPtr.Zero;
+  EnumWindows((w,p)=>{ uint pid;GetWindowThreadProcessId(w,out pid);Rect r;
+   if(pid==process&&IsWindowVisible(w)&&GetWindowRect(w,out r)&&r.Right-r.Left>=900&&r.Bottom-r.Top>=600) found=w;
+   return true;
+  },IntPtr.Zero);
+  return found;
+ }
  public static void Click(IntPtr w,double x,double y) {
   Rect r; if(!GetWindowRect(w,out r)||r.Right-r.Left<900) throw new Exception("Unexpected Setup bounds");
   SetForegroundWindow(w); SetCursorPos(r.Left+(int)((r.Right-r.Left)*x),r.Top+(int)((r.Bottom-r.Top)*y));
@@ -34,15 +46,21 @@ try {
   Start-Sleep -Milliseconds 300
  }
  if (-not $setup) { throw 'Finished EXE did not open Setup' }
+ $handle = [IntPtr]::Zero
+ while ((Get-Date) -lt $until -and $handle -eq [IntPtr]::Zero) {
+  $handle = [InstallerMouse]::Find([uint32]$setup.Id)
+  Start-Sleep -Milliseconds 300
+ }
+ if ($handle -eq [IntPtr]::Zero) { throw 'Visible Setup surface not found' }
  Start-Sleep -Seconds 3
  Capture '1-welcome'
- [InstallerMouse]::Click($setup.MainWindowHandle,0.89,0.92)
+ [InstallerMouse]::Click($handle,0.89,0.92)
  Start-Sleep -Seconds 3
  (New-Object -ComObject WScript.Shell).SendKeys('{END}')
  Start-Sleep -Seconds 1
  Capture '2-readme'
- [InstallerMouse]::Click($setup.MainWindowHandle,0.275,0.92)
- [InstallerMouse]::Click($setup.MainWindowHandle,0.89,0.92)
+ [InstallerMouse]::Click($handle,0.275,0.92)
+ [InstallerMouse]::Click($handle,0.89,0.92)
  Start-Sleep -Seconds 5
  Capture '3-install-options'
  Write-Host "Captured actual finished installer screens for offline source review: expected=$Version"
