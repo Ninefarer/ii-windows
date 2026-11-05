@@ -44,6 +44,18 @@ jobs:
           git init -q ii
           git -C ii fetch -q --depth 1 "$url" "$sha"
           git -C ii checkout -q FETCH_HEAD
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: installer
+      - name: Test explicit offline source and build repaired Setup
+        shell: bash
+        run: |
+          cd installer
+          cargo test --locked --target x86_64-pc-windows-msvc -p iiw-setup-core
+          cargo build --release --locked --target x86_64-pc-windows-msvc -p ii-windows-setup
       - name: Build UI-only package and verify every unchanged entry
         shell: powershell
         run: |
@@ -51,7 +63,7 @@ jobs:
           if ($zip.Count -ne 1) { throw 'Expected one validated base package' }
           $hash = (Get-Content ($zip[0].FullName + '.sha256') -Raw).Split()[0]
           if ((Get-FileHash $zip[0].FullName).Hash -ne $hash) { throw 'Base checksum mismatch' }
-          python packaging/build-ui-update.py $zip[0].FullName ii pkg
+          python packaging/build-ui-update.py $zip[0].FullName ii pkg --setup installer/target/x86_64-pc-windows-msvc/release/ii-windows-setup.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $output = Get-ChildItem pkg -Filter '*.zip' | Select-Object -First 1
