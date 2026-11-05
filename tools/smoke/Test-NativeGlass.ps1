@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$InstallPath, [Parameter(Mandatory)][string]$ShellPath)
+param([Parameter(Mandatory)][string]$InstallPath, [Parameter(Mandatory)][string]$ShellPath, [string]$LogDirectory = (Join-Path $env:RUNNER_TEMP 'native-glass-logs'))
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -19,8 +19,8 @@ public static class GlassWindows {
         Callback check=(w,p)=>{
             uint pid; GetWindowThreadProcessId(w,out pid);
             if(pid!=process) return true;
-            var text=new StringBuilder(256); GetWindowText(w,text,256);
-            if(pid==process && text.ToString()=="ii native glass lifecycle test") found=w;
+            var name=new StringBuilder(128); GetClassName(w,name,128);
+            if(IsWindowVisible(w) && name.ToString().StartsWith("Qt",StringComparison.Ordinal)) found=w;
             return true;
         };
         EnumWindows((w,p)=>{check(w,p); EnumChildWindows(w,check,p); return true;},IntPtr.Zero);
@@ -42,6 +42,7 @@ $qml = Join-Path $ShellPath 'native-glass-lifecycle.qml'
 $phase = Join-Path $env:RUNNER_TEMP ('native-glass-' + [guid]::NewGuid().ToString('N') + '.json')
 $previous = $env:IIW_GLASS_TEST_PHASE
 $process = $null
+$started = Get-Date
 try {
     Copy-Item (Join-Path $PSScriptRoot 'native-glass.qml') $qml -Force
     $env:IIW_GLASS_TEST_PHASE = $phase
@@ -81,5 +82,17 @@ try {
 } finally {
     if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
     $env:IIW_GLASS_TEST_PHASE = $previous
+    try {
+        New-Item -ItemType Directory -Force $LogDirectory | Out-Null
+        if (Test-Path $phase) { Copy-Item $phase (Join-Path $LogDirectory 'last-phase.json') -Force }
+        $runRoot = Join-Path $env:LOCALAPPDATA 'quickshell\run\by-id'
+        Get-ChildItem $runRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.CreationTime -ge $started.AddSeconds(-2) } | ForEach-Object {
+            $log = Join-Path $_.FullName 'log.log'
+            if (Test-Path $log) {
+                Copy-Item $log (Join-Path $LogDirectory ($_.Name + '.log')) -Force
+                Get-Content $log | Select-String -Pattern 'ERROR|TypeError|ReferenceError|Cannot assign|not a type|Failed to load' | ForEach-Object { Write-Host $_.Line }
+            }
+        }
+    } catch { Write-Warning "Could not collect native glass logs: $_" }
     Remove-Item $qml, $phase -ErrorAction SilentlyContinue
 }

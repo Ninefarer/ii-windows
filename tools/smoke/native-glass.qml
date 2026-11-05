@@ -24,7 +24,6 @@ ShellRoot {
         path: Quickshell.env("IIW_GLASS_TEST_PHASE")
     }
     PanelWindow {
-        title: "ii native glass lifecycle test"
         visible: true
         implicitWidth: 240
         implicitHeight: 160

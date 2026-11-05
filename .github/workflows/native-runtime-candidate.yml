@@ -1,0 +1,92 @@
+name: Windows runtime candidate
+on:
+  push:
+    branches: [windows-native-end4]
+    paths: [.github/workflows/native-runtime-candidate.yml]
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Existing native build with successful compilation, policy, installer and baseline runtime checks
+        required: true
+        default: '41943473280'
+permissions:
+  actions: read
+  contents: read
+jobs:
+  validate:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN: ${{ inputs.build_run || '41943473280' }}
+    steps:
+      - name: Preserve committed line endings
+        shell: bash
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require successful build checks and unchanged application inputs
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" > build-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN/jobs" > build-jobs.json
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          run = json.load(open('build-run.json'))
+          assert run['name'] == 'Windows native candidate' and run['head_branch'] == 'windows-native-end4'
+          jobs = {j['name']: j for j in json.load(open('build-jobs.json'))['jobs']}
+          for name in ['policy', 'Setup tests', 'Build x64']:
+              assert jobs[name]['conclusion'] == 'success', name
+          smoke = jobs['Smoke native x64']
+          assert any(s['name'] == 'Smoke test' and s['conclusion'] == 'success' for s in smoke['steps'])
+          failed = [s['name'] for s in smoke['steps'] if s['conclusion'] == 'failure']
+          assert failed in [[], ['Test native glass topology, backdrop lifetime and focus flags']]
+          changed = subprocess.check_output(['git', 'diff', '--name-only', run['head_sha'], 'HEAD'], text=True).splitlines()
+          allowed = {'.github/workflows/native-runtime-candidate.yml', '.github/workflows/offline-installer.yml'}
+          assert all(p.startswith('tools/smoke/') or p in allowed for p in changed), changed
+          reused = {'buildRunId': run['id'], 'buildCommit': run['head_sha'],
+                    'validationRunId': int(os.environ['GITHUB_RUN_ID']), 'validationCommit': os.environ['GITHUB_SHA']}
+          Path('REUSED-BUILD.json').write_text(json.dumps(reused, indent=2) + '\n')
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f"PACKAGE_ARTIFACT=ii-windows-windows-native-end4-{run['run_number']}\n")
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ env.BUILD_RUN }}
+          name: ${{ env.PACKAGE_ARTIFACT }}
+          path: pkg
+      - name: Verify and extract the exact compiled package
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = @(Get-ChildItem pkg -Filter 'ii-windows-*.zip')
+          if ($zip.Count -ne 1) { throw 'Expected one native package' }
+          $expected = (Get-Content ($zip[0].FullName + '.sha256') -Raw).Split()[0]
+          if ((Get-FileHash $zip[0].FullName -Algorithm SHA256).Hash -ne $expected) { throw 'Package checksum mismatch' }
+          [IO.Compression.ZipFile]::ExtractToDirectory($zip[0].FullName, (Join-Path $PWD 'runtime'))
+          $provenance = Get-Content runtime/SOURCE-PROVENANCE.json -Raw -Encoding UTF8 | ConvertFrom-Json
+          $reuse = Get-Content REUSED-BUILD.json -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($provenance.packagingCommit -ne $reuse.buildCommit) { throw 'Compiled package source mismatch' }
+          foreach ($patch in $provenance.patches) {
+              if ((Get-FileHash $patch.path -Algorithm SHA256).Hash -ne $patch.sha256) { throw "Source patch mismatch: $($patch.path)" }
+          }
+          Copy-Item REUSED-BUILD.json pkg/REUSED-BUILD.json
+      - name: Check actual packaged native glass policies
+        shell: powershell
+        run: node tools/test-desktop-glass.cjs runtime/config/ii
+      - name: Test corrected native window lifecycle harness
+        shell: powershell
+        run: '& tools/smoke/Test-NativeGlass.ps1 -InstallPath (Join-Path $PWD "runtime") -ShellPath (Join-Path $PWD "runtime/config/ii") -LogDirectory (Join-Path $PWD "native-glass-logs")'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ii-windows-windows-native-end4-${{ github.run_number }}
+          path: pkg/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-glass-runtime-logs
+          path: native-glass-logs/
