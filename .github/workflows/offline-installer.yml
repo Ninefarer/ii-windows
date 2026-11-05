@@ -99,9 +99,6 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
       - uses: actions/download-artifact@v4
         with:
           name: ii-windows-single-exe
@@ -121,20 +118,13 @@ jobs:
         run: |
           $exe = Get-ChildItem installer-test -Filter '*-x64-offline-setup.exe' | Select-Object -First 1
           $version = $exe.Name -replace '^ii-windows-','' -replace '-x64-offline-setup.exe$',''
-          $key = 'HKCU:/Software/Policies/Microsoft/Edge/WebView2/AdditionalBrowserArguments'
-          New-Item $key -Force | Out-Null
-          New-ItemProperty $key -Name '*' -Value '--remote-debugging-port=9222' -PropertyType String -Force | Out-Null
-          try {
-            node tools/smoke/test-installer-source.cjs $exe.FullName $version installer-test/source-selection.json
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          } finally {
-            Remove-ItemProperty $key -Name '*' -ErrorAction SilentlyContinue
-          }
+          & tools/smoke/Test-InstallerSource.ps1 -Exe $exe.FullName -Version $version -Output (Join-Path $PWD 'installer-source-results')
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: finished-installer-source-validation
-          path: installer-test/source-selection.json
+          path: installer-source-results/
 
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.publish_release
