@@ -105,7 +105,7 @@ ShellRoot {
             let target = null, imageItem = null, phase;
             if (Config.options.windowsPort.wallpaperOwner !== "external") {
                 if (!combo.popup.visible) {
-                    phase = "open-owner"; target = combo; imageItem = window.contentItem;
+                    phase = "open-owner"; target = combo; imageItem = page;
                 } else {
                     const row = combo.popup.contentItem.itemAtIndex(3);
                     if (!row || row.text !== "External app") return;
@@ -116,7 +116,7 @@ ShellRoot {
             } else if (!Config.options.windowsPort.nativeDesktopGlass) {
                 phase = "enable-glass"; target = native.switchControl;
             } else {
-                phase = "passed"; imageItem = window.contentItem;
+                phase = "passed"; imageItem = page;
             }
             const point = target ? target.mapToGlobal(target.width / 2, target.height / 2) : {x: 0, y: 0};
             root.publish({phase, width: window.width, dpr: window.devicePixelRatio, target: point,
