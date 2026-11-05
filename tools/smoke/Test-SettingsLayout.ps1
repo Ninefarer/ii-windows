@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$InstallPath, [Parameter(Mandatory)][string]$ShellPath, [Parameter(Mandatory)][string]$Output)
+param([Parameter(Mandatory)][string]$InstallPath, [Parameter(Mandatory)][string]$ShellPath, [Parameter(Mandatory)][string]$Output, [switch]$Panel)
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -25,9 +25,11 @@ $p = $null
 try {
     New-Item -ItemType Directory -Force (Split-Path $config) | Out-Null
     if (-not (Test-Path $config)) { [IO.File]::WriteAllText($config, '{}', (New-Object Text.UTF8Encoding($false))) }
-    Copy-Item (Join-Path $PSScriptRoot 'settings-layout.qml') $qml -Force
-    foreach ($scale in '1', '1.5') {
-      foreach ($testWidth in '420','600','820') {
+    Copy-Item (Join-Path $PSScriptRoot $(if ($Panel) { 'settings-panel.qml' } else { 'settings-layout.qml' })) $qml -Force
+    $scales = if ($Panel) { @('1') } else { @('1','1.5') }
+    foreach ($scale in $scales) {
+      $widths = if ($Panel) { @([string][SettingsMouse]::GetSystemMetrics(0)) } else { @('420','600','820') }
+      foreach ($testWidth in $widths) {
         $env:IIW_UI_TEST_WIDTH = $testWidth
         $folder = Join-Path $Output ('scale-' + $scale + '-width-' + $testWidth)
         New-Item -ItemType Directory -Force $folder | Out-Null

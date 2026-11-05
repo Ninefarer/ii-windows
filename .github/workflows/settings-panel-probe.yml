@@ -1,0 +1,33 @@
+name: Settings panel regression probe
+on:
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  settings:
+    runs-on: windows-2025
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 41955583713
+          pattern: ii-windows-windows-native-end4-*
+          merge-multiple: true
+          path: pkg
+      - name: Extract installed ui.3 package
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = Get-ChildItem pkg -Filter '*.zip' | Select-Object -First 1
+          [IO.Compression.ZipFile]::ExtractToDirectory($zip.FullName, (Join-Path $PWD 'runtime'))
+      - name: Click controls inside the real Settings panel
+        shell: powershell
+        run: '& tools/smoke/Test-SettingsLayout.ps1 -Panel -InstallPath (Join-Path $PWD "runtime") -ShellPath (Join-Path $PWD "runtime/config/ii") -Output (Join-Path $PWD "panel-results")'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: settings-panel-result
+          path: panel-results/
