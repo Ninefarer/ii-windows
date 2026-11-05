@@ -27,9 +27,14 @@ with zipfile.ZipFile(package) as archive:
         parser.error('package and standalone setup executables do not match')
 args.output.mkdir(parents=True, exist_ok=True)
 output = args.output.resolve() / f'ii-windows-{version}-x64-offline-setup.exe'
+# The setup verifies a sidecar named after the extracted payload, not the source ZIP.
+payload_checksum = args.output.resolve() / 'payload.zip.sha256'
+payload_checksum.write_text(f'{expected}  payload.zip\n', encoding='ascii')
 subprocess.run(['makensis', '-V2', f'-DOUTPUT={output}',
                 f'-DSETUP={setup.resolve()}', f'-DPACKAGE={package.resolve()}',
+                f'-DCHECKSUM={payload_checksum}',
                 str(Path(__file__).with_name('offline-setup.nsi').resolve())], check=True)
+payload_checksum.unlink()
 digest = hashlib.file_digest(output.open('rb'), 'sha256').hexdigest()
 Path(str(output) + '.sha256').write_text(f'{digest}  {output.name}\n')
 print(output)

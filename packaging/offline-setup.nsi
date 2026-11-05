@@ -14,6 +14,7 @@ Section
     DetailPrint "Preparing the bundled installer and offline package..."
     File /oname=ii-windows-setup.exe "${SETUP}"
     File /oname=payload.zip "${PACKAGE}"
+    File /oname=payload.zip.sha256 "${CHECKSUM}"
     DetailPrint "Opening ii-windows Setup. Review the installation there."
     ClearErrors
     ExecWait '"$PLUGINSDIR\ii-windows-setup.exe" --package "$PLUGINSDIR\payload.zip" --no-self-update' $0
