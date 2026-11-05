@@ -179,6 +179,35 @@ index 0000000..17561fe
 +        fragmentShader: Qt.resolvedUrl("shaders/liquidLens.frag.qsb")
 +    }
 +}
+diff --git a/modules/common/widgets/StyledComboBox.qml b/modules/common/widgets/StyledComboBox.qml
+index a9d2263..c198797 100644
+--- a/modules/common/widgets/StyledComboBox.qml
++++ b/modules/common/widgets/StyledComboBox.qml
+@@ -92,6 +92,7 @@ ComboBox {
+ 
+         required property var model
+         required property int index
++        text: root.textAt(index)
+         property color color: {
+             if (root.currentIndex === itemDelegate.index) {
+                 if (itemDelegate.down) return Appearance.colors.colSecondaryContainerActive;
+@@ -150,7 +151,7 @@ ComboBox {
+                 Layout.fillWidth: true
+                 Layout.preferredHeight: Appearance.font.pixelSize.larger
+                 color: itemDelegate.colText
+-                text: itemDelegate.model[root.textRole]
++                text: itemDelegate.text
+                 elide: Text.ElideRight
+                 verticalAlignment: Text.AlignVCenter
+             }
+@@ -158,6 +159,7 @@ ComboBox {
+     }
+ 
+     popup: Popup {
++        popupType: Platform.isWindows ? Popup.Window : Popup.Item
+         y: root.height + 4
+         width: root.width
+         height: Math.min(listView.contentHeight + topPadding + bottomPadding, 300)
 diff --git a/modules/common/widgets/StyledText.qml b/modules/common/widgets/StyledText.qml
 index d05d254..f39ba3d 100644
 --- a/modules/common/widgets/StyledText.qml
@@ -1276,27 +1305,43 @@ index 359f677..e24fe27 100644
                                  StyledText {
                                      Layout.alignment: Qt.AlignVCenter
 diff --git a/modules/settingsPc/pages/BackgroundConfig.qml b/modules/settingsPc/pages/BackgroundConfig.qml
-index 742930c..a1dc9f3 100644
+index 742930c..af66e5c 100644
 --- a/modules/settingsPc/pages/BackgroundConfig.qml
 +++ b/modules/settingsPc/pages/BackgroundConfig.qml
-@@ -541,6 +541,43 @@ ContentPage {
+@@ -34,6 +34,7 @@ ContentPage {
+     ColumnLayout {
+         id: mainLayout
+         Layout.fillWidth: true
++        Layout.minimumWidth: 0
+         Layout.fillHeight: true
+         spacing: 20
+ 
+@@ -535,12 +536,52 @@ ContentPage {
+         }
+ 
+         ContentSection {
++            Layout.maximumWidth: Math.max(0, page.width - 40)
+             visible: Platform.isWindows
+             icon: "desktop_windows"
+             shape: W.MaterialShape.Shape.Ghostish
              title: Translation.tr("Windows desktop")
  
              GroupedList {
-+                ConfigSelectionArray {
++                ConfigComboBox {
 +                    text: Translation.tr("Wallpaper owner")
-+                    icon: "wallpaper"
++                    objectName: "wallpaperOwnerControl"
++                    buttonIcon: "wallpaper"
 +                    currentValue: Config.options.windowsPort.wallpaperOwner
 +                    onSelected: newValue => {
 +                        Config.options.windowsPort.wallpaperOwner = newValue;
 +                        if (newValue !== "auto") Config.options.windowsPort.ownWallpaper = newValue === "ii";
 +                        if (newValue === "external") Config.options.windowsPort.backgroundBehindIcons = true;
 +                    }
-+                    options: [
-+                        { displayName: Translation.tr("Automatic (existing preference)"), value: "auto" },
++                    model: [
++                        { displayName: Translation.tr("Automatic"), value: "auto" },
 +                        { displayName: Translation.tr("Windows wallpaper"), value: "system" },
-+                        { displayName: Translation.tr("ii-managed wallpaper"), value: "ii" },
-+                        { displayName: Translation.tr("External app (Wallpaper Engine, Lively)"), value: "external" }
++                        { displayName: Translation.tr("ii-managed"), value: "ii" },
++                        { displayName: Translation.tr("External app"), value: "external" }
 +                    ]
 +                    W.StyledToolTip {
 +                        text: Translation.tr("External mode leaves the wallpaper app in control and keeps ii's widgets. Enable Native desktop glass for live Windows blur; otherwise cards are translucent. Liquid-lens refraction of external wallpapers is not available.")
@@ -1304,6 +1349,7 @@ index 742930c..a1dc9f3 100644
 +                }
 +
 +                ConfigSwitch {
++                    objectName: "nativeDesktopGlassControl"
 +                    buttonIcon: "blur_on"
 +                    text: Translation.tr("Native desktop glass (experimental)")
 +                    checked: Config.options.windowsPort.nativeDesktopGlass
@@ -1323,7 +1369,7 @@ index 742930c..a1dc9f3 100644
                  ConfigSwitch {
                      buttonIcon: "wallpaper"
                      text: Translation.tr("Put the background behind the desktop icons")
-@@ -556,6 +593,7 @@ ContentPage {
+@@ -556,6 +597,7 @@ ContentPage {
                  ConfigSwitch {
                      buttonIcon: "animation"
                      text: Translation.tr("Draw ii's own wallpaper")
@@ -1331,7 +1377,7 @@ index 742930c..a1dc9f3 100644
                      enabled: Config.options.windowsPort.backgroundBehindIcons
                      checked: Config.options.windowsPort.ownWallpaper
                      onCheckedChanged: {
-@@ -2108,6 +2146,17 @@ ContentPage {
+@@ -2108,6 +2150,17 @@ ContentPage {
                          Config.options.background.widgets.shadow = checked;
                      }
                  }
@@ -1389,6 +1435,31 @@ index b87e2d9..d150b61 100644
                                      }
                                      W.StyledText {
                                          Layout.alignment: Qt.AlignVCenter
+diff --git a/modules/settingsPc/widgets/ConfigSwitch.qml b/modules/settingsPc/widgets/ConfigSwitch.qml
+index 8936783..eee2a15 100644
+--- a/modules/settingsPc/widgets/ConfigSwitch.qml
++++ b/modules/settingsPc/widgets/ConfigSwitch.qml
+@@ -8,9 +8,11 @@ RippleButton {
+     id: root
+     property string buttonIcon
+     property alias iconSize: iconWidget.iconSize
++    readonly property var switchControl: switchWidget
+     colBackgroundHover: "transparent"
+ 
+     Layout.fillWidth: true
++    Layout.minimumWidth: 0
+     Layout.bottomMargin: 6
+     implicitHeight: contentItem.implicitHeight + 8
+     font.pixelSize: Appearance.font.pixelSize.small
+@@ -28,6 +30,8 @@ RippleButton {
+         StyledText {
+             id: labelWidget
+             Layout.fillWidth: true
++            Layout.minimumWidth: 0
++            wrapMode: Text.Wrap
+             text: root.text
+             font: root.font
+             color: Appearance.colors.colOnSecondaryContainer
 diff --git a/modules/settingsPc/widgets/ConfigTextArea.qml b/modules/settingsPc/widgets/ConfigTextArea.qml
 index 4f9a40e..b353327 100644
 --- a/modules/settingsPc/widgets/ConfigTextArea.qml
@@ -1402,6 +1473,19 @@ index 4f9a40e..b353327 100644
              background: null
              padding: 0
              font {
+diff --git a/modules/settingsPc/widgets/ContentPage.qml b/modules/settingsPc/widgets/ContentPage.qml
+index 1917fa5..1e317ac 100644
+--- a/modules/settingsPc/widgets/ContentPage.qml
++++ b/modules/settingsPc/widgets/ContentPage.qml
+@@ -30,7 +30,7 @@ Item {
+ 
+         ColumnLayout {
+             id: contentColumn
+-            width: root.forceWidth ? root.baseWidth : Math.max(root.baseWidth, implicitWidth)
++            width: root.forceWidth ? Math.max(0, Math.min(root.baseWidth, flickable.width - 40)) : Math.max(root.baseWidth, implicitWidth)
+             anchors {
+                 top: parent.top
+                 horizontalCenter: parent.horizontalCenter
 diff --git a/modules/waffle/looks/WText.qml b/modules/waffle/looks/WText.qml
 index ab6dd60..0e3043d 100644
 --- a/modules/waffle/looks/WText.qml

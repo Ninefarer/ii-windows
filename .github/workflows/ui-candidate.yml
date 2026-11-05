@@ -1,0 +1,82 @@
+name: Windows UI candidate
+on:
+  push:
+    branches: [windows-native-end4]
+    paths: [.github/workflows/ui-candidate.yml, UI_VERSION]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  ui:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Keep source line endings
+        shell: bash
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require the validated native.7 backend
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/41947098385" > base-run.json
+          python - <<'PY'
+          import json, os
+          run = json.load(open('base-run.json'))
+          assert run['conclusion'] == 'success' and run['head_sha'] == 'a8597d0ecfba00c569564bc6995ffb715a5c037a'
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f"BASE_ARTIFACT=ii-windows-windows-native-end4-{run['run_number']}\n")
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 41947098385
+          name: ${{ env.BASE_ARTIFACT }}
+          path: base
+      - name: Check out pristine shell source
+        shell: bash
+        run: |
+          read -r name url sha < <(grep '^ii ' sources.lock)
+          git init -q ii
+          git -C ii fetch -q --depth 1 "$url" "$sha"
+          git -C ii checkout -q FETCH_HEAD
+      - name: Build UI-only package and verify every unchanged entry
+        shell: powershell
+        run: |
+          $zip = @(Get-ChildItem base -Filter 'ii-windows-*.zip')
+          if ($zip.Count -ne 1) { throw 'Expected one validated base package' }
+          $hash = (Get-Content ($zip[0].FullName + '.sha256') -Raw).Split()[0]
+          if ((Get-FileHash $zip[0].FullName).Hash -ne $hash) { throw 'Base checksum mismatch' }
+          python packaging/build-ui-update.py $zip[0].FullName ii pkg
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $output = Get-ChildItem pkg -Filter '*.zip' | Select-Object -First 1
+          [IO.Compression.ZipFile]::ExtractToDirectory($output.FullName, (Join-Path $PWD 'runtime'))
+      - name: Parse interactive test harness
+        shell: powershell
+        run: |
+          $tokens = $null; $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'tools/smoke/Test-SettingsLayout.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { $errors | Format-List; throw 'Invalid Settings test script' }
+      - name: Click actual Settings controls at three widths and two scales
+        shell: powershell
+        run: '& tools/smoke/Test-SettingsLayout.ps1 -InstallPath (Join-Path $PWD "runtime") -ShellPath (Join-Path $PWD "runtime/config/ii") -Output (Join-Path $PWD "ui-results")'
+      - name: Recheck native glass lifecycle with unchanged backend
+        shell: powershell
+        run: '& tools/smoke/Test-NativeGlass.ps1 -InstallPath (Join-Path $PWD "runtime") -ShellPath (Join-Path $PWD "runtime/config/ii") -LogDirectory (Join-Path $PWD "native-glass-logs")'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ii-windows-windows-native-end4-${{ github.run_number }}
+          path: pkg/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: settings-ui-validation
+          path: |
+            ui-results/
+            native-glass-logs/
