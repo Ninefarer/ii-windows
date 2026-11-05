@@ -8,13 +8,14 @@ const child = spawn(exe, [], {env: {...process.env, WEBVIEW2_ADDITIONAL_BROWSER_
 child.on("exit", code => console.log("Offline wrapper exit code:", code));
 let socket;
 (async () => {
-  let page;
+  let page, targets, lastError;
   for (let i = 0; i < 120 && !page; i++) {
-    try { page = (await (await fetch('http://127.0.0.1:9222/json')).json()).find(p => p.type === 'page' && p.webSocketDebuggerUrl); } catch {}
+    try { targets = await (await fetch('http://127.0.0.1:9222/json/list')).json(); page = targets.find(p => p.webSocketDebuggerUrl && p.type !== 'browser'); } catch (error) { lastError = String(error.cause || error); }
     if (!page) await delay(500);
   }
   if (!page) {
-    console.log(spawnSync('powershell.exe', ['-NoProfile','-Command', "Get-Process | Where-Object { $_.ProcessName -match 'ii-windows|msedgewebview' } | Select-Object ProcessName,Id,MainWindowTitle | ConvertTo-Json"], {encoding:'utf8'}).stdout);
+    console.log({targets,lastError});
+    console.log(spawnSync('powershell.exe', ['-NoProfile','-Command', "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'ii-windows|msedgewebview' } | Select-Object Name,ProcessId,CommandLine | ConvertTo-Json"], {encoding:'utf8'}).stdout);
   }
   assert(page, 'Finished EXE did not open its Setup WebView');
   socket = new WebSocket(page.webSocketDebuggerUrl);
