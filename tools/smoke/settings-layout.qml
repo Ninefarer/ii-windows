@@ -8,7 +8,7 @@ import qs.modules.settingsPc.pages as Pages
 
 ShellRoot {
     id: root
-    property var widths: [420, 600, 820]
+    property int testWidth: Number(Quickshell.env("IIW_UI_TEST_WIDTH"))
     property int index: 0
     property bool started: false
     property bool settled: false
@@ -58,7 +58,7 @@ ShellRoot {
         id: window
         title: "ii Settings layout test"
         visible: true
-        implicitWidth: root.widths[root.index]
+        implicitWidth: root.testWidth
         implicitHeight: 520
         color: "#18181b"
         Pages.BackgroundConfig { id: page; anchors.fill: parent }
@@ -77,11 +77,7 @@ ShellRoot {
     Timer {
         id: advance
         interval: 1200
-        onTriggered: {
-            if (root.index + 1 === root.widths.length) { Qt.exit(0); return; }
-            root.index++;
-            root.reset();
-        }
+        onTriggered: Qt.exit(0)
     }
     Timer {
         interval: 100

@@ -20,13 +20,16 @@ $qml = Join-Path $ShellPath 'settings-layout-test.qml'
 $oldScale = $env:QT_SCALE_FACTOR
 $oldState = $env:IIW_UI_TEST_STATE
 $oldImages = $env:IIW_UI_TEST_IMAGES
+$oldWidth = $env:IIW_UI_TEST_WIDTH
 $p = $null
 try {
     New-Item -ItemType Directory -Force (Split-Path $config) | Out-Null
     if (-not (Test-Path $config)) { [IO.File]::WriteAllText($config, '{}', (New-Object Text.UTF8Encoding($false))) }
     Copy-Item (Join-Path $PSScriptRoot 'settings-layout.qml') $qml -Force
     foreach ($scale in '1', '1.5') {
-        $folder = Join-Path $Output ('scale-' + $scale)
+      foreach ($testWidth in '420','600','820') {
+        $env:IIW_UI_TEST_WIDTH = $testWidth
+        $folder = Join-Path $Output ('scale-' + $scale + '-width-' + $testWidth)
         New-Item -ItemType Directory -Force $folder | Out-Null
         $stateFile = Join-Path $folder 'state.json'
         $env:QT_SCALE_FACTOR = $scale
@@ -60,11 +63,13 @@ try {
             $p.Refresh()
         }
         if (-not $p.HasExited) { throw 'Settings UI test timed out' }
-        foreach ($width in '420','600','820') { if (-not $passed.ContainsKey($width)) { throw "Missing Settings UI pass: width=$width scale=$scale" } }
+        if (-not $passed.ContainsKey($testWidth)) { throw "Missing Settings UI pass: width=$testWidth scale=$scale" }
         if ($p.ExitCode -ne 0) { throw 'Settings UI harness failed' }
+      }
     }
 } finally {
     if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+    $env:IIW_UI_TEST_WIDTH = $oldWidth
     $env:QT_SCALE_FACTOR = $oldScale; $env:IIW_UI_TEST_STATE = $oldState; $env:IIW_UI_TEST_IMAGES = $oldImages
     $logs = Join-Path $env:LOCALAPPDATA 'quickshell/run/by-id'
     Get-ChildItem $logs -Recurse -Filter log.log -ErrorAction SilentlyContinue | ForEach-Object {
